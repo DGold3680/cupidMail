@@ -1,0 +1,35 @@
+{
+  "name": "mymail",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Serverless multi-domain email hosting platform and webmail client",
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "workers/*"
+  ],
+  "scripts": {
+    "dev": "npm --workspace=apps/web run dev",
+    "build": "prisma generate && npm --workspace=apps/web run build",
+    "start": "npm --workspace=apps/web run start",
+    "db:generate": "prisma generate",
+    "db:migrate:deploy": "prisma migrate deploy",
+    "db:deploy": "prisma migrate deploy",
+    "db:push": "prisma db push",
+    "db:seed": "tsx prisma/seed.ts",
+    "worker:dev": "npm --workspace=workers/mail run dev",
+    "worker:secrets": "node workers/mail/sync-secrets.js",
+    "worker:deploy": "npm --workspace=workers/mail run deploy"
+  },
+  "keywords": [
+    "email",
+    "webmail",
+    "cloudflare-worker",
+    "aws-s3",
+    "supabase",
+    "resend",
+    "nextjs"
+  ],
+  "author": "",
+  "license": "MIT"
+}

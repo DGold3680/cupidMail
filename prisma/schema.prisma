@@ -1,0 +1,339 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  MEMBER
+  READ_ONLY
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  FAILED
+}
+
+enum ServiceStatus {
+  INACTIVE
+  ACTIVE
+  ERROR
+}
+
+enum MailboxStatus {
+  ACTIVE
+  DISABLED
+  DELETED
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum RecipientType {
+  TO
+  CC
+  BCC
+}
+
+enum MailFolder {
+  INBOX
+  SENT
+  DRAFTS
+  TRASH
+  ARCHIVE
+  SPAM
+}
+
+enum IngestionStatus {
+  RECEIVED
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum DeliveryStatus {
+  QUEUED
+  SENDING
+  DELIVERED
+  BOUNCED
+  COMPLAINED
+  FAILED
+}
+
+enum ProviderType {
+  RESEND
+  SES
+  SMTP
+}
+
+enum ProviderStatus {
+  ACTIVE
+  INVALID
+  DISABLED
+}
+
+model User {
+  id                   String                    @id @default(uuid())
+  email                String                    @unique
+  name                 String?
+  avatarUrl            String?
+  createdAt            DateTime                  @default(now())
+  updatedAt            DateTime                  @updatedAt
+
+  ownedDomains         Domain[]                  @relation("DomainOwner")
+  mailboxMemberships   MailboxMember[]
+  providerConnections  EmailProviderConnection[]
+
+  @@map("users")
+}
+
+model Domain {
+  id                 String             @id @default(uuid())
+  name               String             @unique
+  ownerId            String             @map("owner_id")
+  verificationStatus VerificationStatus @default(PENDING) @map("verification_status")
+  inboundStatus      ServiceStatus      @default(INACTIVE) @map("inbound_status")
+  outboundStatus     ServiceStatus      @default(INACTIVE) @map("outbound_status")
+  dnsRecords         Json?              @map("dns_records")
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+
+  owner              User               @relation("DomainOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  mailboxes          Mailbox[]
+  aliases            Alias[]
+  sendingConfig      DomainSendingConfig?
+
+  @@index([ownerId])
+  @@map("domains")
+}
+
+model Mailbox {
+  id          String        @id @default(uuid())
+  domainId    String        @map("domain_id")
+  localPart   String        @map("local_part")
+  address     String        @unique
+  displayName String?       @map("display_name")
+  status      MailboxStatus @default(ACTIVE)
+  quotaBytes  BigInt        @default(10737418240) @map("quota_bytes") // 10 GB
+  usedBytes   BigInt        @default(0) @map("used_bytes")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  domain      Domain        @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  members     MailboxMember[]
+  aliases     Alias[]       @relation("MailboxAliases")
+  messages    MailboxMessage[]
+
+  @@index([domainId])
+  @@index([address])
+  @@map("mailboxes")
+}
+
+model MailboxMember {
+  id        String   @id @default(uuid())
+  mailboxId String   @map("mailbox_id")
+  userId    String   @map("user_id")
+  role      Role     @default(MEMBER)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  mailbox   Mailbox  @relation(fields: [mailboxId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([mailboxId, userId])
+  @@index([userId])
+  @@map("mailbox_members")
+}
+
+model Alias {
+  id              String   @id @default(uuid())
+  domainId        String   @map("domain_id")
+  address         String   @unique
+  targetMailboxId String   @map("target_mailbox_id")
+  enabled         Boolean  @default(true)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  domain          Domain   @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  targetMailbox   Mailbox  @relation("MailboxAliases", fields: [targetMailboxId], references: [id], onDelete: Cascade)
+
+  @@index([domainId])
+  @@index([targetMailboxId])
+  @@map("aliases")
+}
+
+model Thread {
+  id                String    @id @default(uuid())
+  subjectNormalized String    @map("subject_normalized")
+  snippet           String?
+  lastMessageAt     DateTime  @default(now()) @map("last_message_at")
+  messageCount      Int       @default(1) @map("message_count")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  messages          Message[]
+
+  @@index([lastMessageAt(sort: Desc)])
+  @@map("threads")
+}
+
+model Message {
+  id                String           @id @default(uuid())
+  ingestionId       String?          @unique @map("ingestion_id")
+  internetMessageId String?          @map("internet_message_id")
+  threadId          String           @map("thread_id")
+  fromAddress       String           @map("from_address")
+  fromName          String?          @map("from_name")
+  replyTo           String?          @map("reply_to")
+  subject           String
+  textBody          String?          @map("text_body")
+  htmlBody          String?          @map("html_body")
+  rawStorageKey     String?          @map("raw_storage_key")
+  direction         MessageDirection @default(INBOUND)
+  sentAt            DateTime?        @map("sent_at")
+  receivedAt        DateTime?        @default(now()) @map("received_at")
+  inReplyTo         String?          @map("in_reply_to")
+  references        String?
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+
+  thread            Thread           @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  recipients        MessageRecipient[]
+  mailboxMessages   MailboxMessage[]
+  attachments       Attachment[]
+  deliveries        OutgoingDelivery[]
+
+  @@index([threadId, createdAt(sort: Asc)])
+  @@index([internetMessageId])
+  @@index([fromAddress])
+  @@index([receivedAt(sort: Desc)])
+  @@map("messages")
+}
+
+model MessageRecipient {
+  id            String        @id @default(uuid())
+  messageId     String        @map("message_id")
+  address       String
+  name          String?
+  recipientType RecipientType @default(TO) @map("recipient_type")
+
+  message       Message       @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId, recipientType])
+  @@index([address])
+  @@map("message_recipients")
+}
+
+model MailboxMessage {
+  id         String     @id @default(uuid())
+  mailboxId  String     @map("mailbox_id")
+  messageId  String     @map("message_id")
+  folder     MailFolder @default(INBOX)
+  isRead     Boolean    @default(false) @map("is_read")
+  isStarred  Boolean    @default(false) @map("is_starred")
+  isArchived Boolean    @default(false) @map("is_archived")
+  isDeleted  Boolean    @default(false) @map("is_deleted")
+  createdAt  DateTime   @default(now()) @map("created_at")
+
+  mailbox    Mailbox    @relation(fields: [mailboxId], references: [id], onDelete: Cascade)
+  message    Message    @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([mailboxId, messageId])
+  @@index([mailboxId, folder, isDeleted, isArchived, createdAt(sort: Desc)])
+  @@index([mailboxId, isStarred, isDeleted, createdAt(sort: Desc)])
+  @@index([mailboxId, isRead])
+  @@index([messageId])
+  @@map("mailbox_messages")
+}
+
+model Attachment {
+  id          String   @id @default(uuid())
+  messageId   String   @map("message_id")
+  filename    String
+  contentType String   @map("content_type")
+  sizeBytes   Int      @map("size_bytes")
+  storageKey  String   @map("storage_key")
+  contentId   String?  @map("content_id")
+  isInline    Boolean  @default(false) @map("is_inline")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  message     Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@map("attachments")
+}
+
+model IngestionJob {
+  id           String          @id // ingestion UUID
+  storageKey   String          @map("storage_key")
+  recipient    String
+  sender       String?
+  status       IngestionStatus @default(RECEIVED)
+  attemptCount Int             @default(1) @map("attempt_count")
+  lastError    String?         @map("last_error")
+  receivedAt   DateTime        @default(now()) @map("received_at")
+  processedAt  DateTime?       @map("processed_at")
+
+  @@index([status, receivedAt(sort: Desc)])
+  @@index([recipient])
+  @@map("ingestion_jobs")
+}
+
+model EmailProviderConnection {
+  id                   String         @id @default(uuid())
+  userId               String         @map("user_id")
+  name                 String         @default("Resend Provider")
+  provider             ProviderType   @default(RESEND)
+  encryptedCredentials String         @map("encrypted_credentials")
+  status               ProviderStatus @default(ACTIVE)
+  createdAt            DateTime       @default(now()) @map("created_at")
+  updatedAt            DateTime       @updatedAt @map("updated_at")
+
+  user                 User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sendingConfigs       DomainSendingConfig[]
+
+  @@index([userId])
+  @@map("email_provider_connections")
+}
+
+model DomainSendingConfig {
+  id                   String                  @id @default(uuid())
+  domainId             String                  @unique @map("domain_id")
+  providerConnectionId String                  @map("provider_connection_id")
+  verified             Boolean                 @default(false)
+  enabled              Boolean                 @default(true)
+  defaultFromAddress   String?                 @map("default_from_address")
+  createdAt            DateTime                @default(now()) @map("created_at")
+  updatedAt            DateTime                @updatedAt @map("updated_at")
+
+  domain               Domain                  @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  providerConnection   EmailProviderConnection @relation(fields: [providerConnectionId], references: [id], onDelete: Cascade)
+
+  @@index([providerConnectionId])
+  @@map("domain_sending_config")
+}
+
+model OutgoingDelivery {
+  id                String         @id @default(uuid())
+  messageId         String         @map("message_id")
+  provider          String         @default("RESEND")
+  providerMessageId String?        @map("provider_message_id")
+  status            DeliveryStatus @default(QUEUED)
+  lastError         String?        @map("last_error")
+  createdAt         DateTime       @default(now()) @map("created_at")
+  updatedAt         DateTime       @updatedAt @map("updated_at")
+
+  message           Message        @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@index([providerMessageId])
+  @@map("outgoing_deliveries")
+}

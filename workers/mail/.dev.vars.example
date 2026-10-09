@@ -1,0 +1,10 @@
+# Cloudflare Worker Local Development Variables (.dev.vars)
+SUPABASE_URL="https://your-project.supabase.co"
+# New Supabase Secret Key (sb_secret_...) or legacy service_role key:
+SUPABASE_SECRET_KEY="sb_secret_..."
+# Or legacy: SUPABASE_SERVICE_ROLE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+CLOUDINARY_CLOUD_NAME="your-cloud-name"
+CLOUDINARY_API_KEY="your-api-key"
+CLOUDINARY_API_SECRET="your-api-secret"
+ADMIN_API_SECRET="admin-secret-for-worker-recovery"
+
