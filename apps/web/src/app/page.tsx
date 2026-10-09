@@ -247,8 +247,12 @@ export default function MailDashboard() {
       cc = otherRecipients.join(", ");
     }
 
+    const activeMailbox =
+      mailboxes.find((m) => m.id === selectedMessage.mailboxMessages?.[0]?.mailbox?.id) ||
+      mailboxes[0];
+
     setComposerState({
-      mailboxId: selectedMessage.mailboxMessages?.[0]?.mailbox.id || mailboxes[0]?.id,
+      mailboxId: activeMailbox?.id,
       to,
       cc,
       subject,
@@ -269,9 +273,17 @@ export default function MailDashboard() {
   const handleQuickReply = async (text: string) => {
     if (!selectedMessage) return;
 
+    const activeMailbox =
+      mailboxes.find((m) => m.id === selectedMessage.mailboxMessages?.[0]?.mailbox?.id) ||
+      mailboxes[0];
+
+    if (!activeMailbox) {
+      throw new Error("No active mailbox configured. Please verify your domain in Settings.");
+    }
+
     const payload = {
-      mailboxId: selectedMessage.mailboxMessages?.[0]?.mailbox.id || mailboxes[0]?.id,
-      fromAddress: selectedMessage.mailboxMessages?.[0]?.mailbox.address || mailboxes[0]?.address,
+      mailboxId: activeMailbox.id,
+      fromAddress: activeMailbox.address,
       to: [{ address: selectedMessage.fromAddress, name: selectedMessage.fromName || undefined }],
       subject: selectedMessage.subject.startsWith("Re:")
         ? selectedMessage.subject

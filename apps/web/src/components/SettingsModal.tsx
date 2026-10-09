@@ -28,6 +28,7 @@ import {
   ChevronUp,
   Info,
   Code2,
+  AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -831,58 +832,83 @@ export function SettingsModal({ isOpen, onClose, onRefreshData }: SettingsModalP
                                 </table>
                               </div>
 
-                              {/* Inbound Email Connection Guide for External Domains */}
-                              <div className="bg-[#FAF7F2] border border-[#E5DDD0] rounded-xl p-3.5 space-y-3">
-                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                                  <div className="flex items-center space-x-1.5">
-                                    <Code2 className="w-4 h-4 text-stone-700" />
-                                    <span className="text-xs font-bold font-mono text-stone-800">
-                                      Inbound Setup for External Domains
-                                    </span>
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleSendTestInbound(dom)}
-                                    disabled={testingInboundDomainId === dom.id}
-                                    className="px-2.5 py-1 text-[11px] font-mono font-medium rounded-lg border border-[#E5DDD0] bg-white hover:bg-stone-50 text-stone-800 flex items-center space-x-1 shadow-2xs transition disabled:opacity-50 self-start sm:self-auto"
-                                  >
-                                    <Send className={cn("w-3 h-3 text-stone-600", testingInboundDomainId === dom.id && "animate-pulse")} />
-                                    <span>{testingInboundDomainId === dom.id ? "Sending Test..." : "Send Test Inbound Email"}</span>
-                                  </button>
-                                </div>
-
-                                {testInboundResult && testInboundResult.domainId === dom.id && (
-                                  <div
-                                    className={cn(
-                                      "p-2.5 rounded-lg text-xs font-mono flex items-center space-x-1.5",
-                                      testInboundResult.type === "success"
-                                        ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
-                                        : "bg-rose-50 text-rose-800 border border-rose-200"
-                                    )}
-                                  >
-                                    {testInboundResult.type === "success" ? (
-                                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                                    ) : (
-                                      <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
-                                    )}
-                                    <span>{testInboundResult.text}</span>
-                                  </div>
-                                )}
-
-                                <p className="text-[11px] text-stone-600 leading-relaxed font-sans">
-                                  Because <strong>{dom.name}</strong> belongs to an external domain account, Cloudflare cannot directly select the platform worker from its dropdown. Choose one of these two setup options:
-                                </p>
-
-                                {/* Option 1: Cloudflare Email Worker */}
-                                <div className="space-y-2 bg-white border border-[#ECE3D6] rounded-lg p-3">
-                                  <div className="flex items-center justify-between">
-                                    <span className="text-[11px] font-bold font-mono text-stone-800">
-                                      Option 1 (Recommended): 5-line Cloudflare Email Worker
-                                    </span>
+                                {/* Inbound Email Setup (Option 2: Cloudflare Email Worker) */}
+                                <div className="bg-[#FAF7F2] border border-[#E5DDD0] rounded-xl p-4 space-y-3.5">
+                                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                    <div className="flex items-center space-x-1.5">
+                                      <Code2 className="w-4 h-4 text-stone-700" />
+                                      <span className="text-xs font-bold font-mono text-stone-800">
+                                        Inbound Email Routing (Option 2: Cloudflare Worker)
+                                      </span>
+                                    </div>
                                     <button
                                       type="button"
-                                      onClick={() =>
-                                        copyToClipboard(
+                                      onClick={() => handleSendTestInbound(dom)}
+                                      disabled={testingInboundDomainId === dom.id}
+                                      className="px-2.5 py-1 text-[11px] font-mono font-medium rounded-lg border border-[#E5DDD0] bg-white hover:bg-stone-50 text-stone-800 flex items-center space-x-1 shadow-2xs transition disabled:opacity-50 self-start sm:self-auto"
+                                    >
+                                      <Send className={cn("w-3 h-3 text-stone-600", testingInboundDomainId === dom.id && "animate-pulse")} />
+                                      <span>{testingInboundDomainId === dom.id ? "Sending Test..." : "Send Test Inbound Email"}</span>
+                                    </button>
+                                  </div>
+
+                                  {testInboundResult && testInboundResult.domainId === dom.id && (
+                                    <div
+                                      className={cn(
+                                        "p-2.5 rounded-lg text-xs font-mono flex items-center space-x-1.5",
+                                        testInboundResult.type === "success"
+                                          ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                                          : "bg-rose-50 text-rose-800 border border-rose-200"
+                                      )}
+                                    >
+                                      {testInboundResult.type === "success" ? (
+                                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                      ) : (
+                                        <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                                      )}
+                                      <span>{testInboundResult.text}</span>
+                                    </div>
+                                  )}
+
+                                  {/* CRITICAL WARNING: Ensure Rule is Enabled */}
+                                  <div className="bg-amber-500/10 border-2 border-amber-500/40 rounded-xl p-3.5 flex items-start space-x-3">
+                                    <div className="p-1.5 bg-amber-500/20 text-amber-800 rounded-lg shrink-0 mt-0.5">
+                                      <AlertTriangle className="w-4 h-4 text-amber-700" />
+                                    </div>
+                                    <div className="text-xs space-y-1">
+                                      <div className="font-bold font-mono text-amber-950 flex items-center space-x-2">
+                                        <span>CRITICAL: Enable the Rule in Cloudflare Email Routing</span>
+                                        <span className="bg-amber-200/90 text-amber-950 text-[10px] px-1.5 py-0.5 rounded font-mono font-bold uppercase tracking-wider">
+                                          Must be ON
+                                        </span>
+                                      </div>
+                                      <p className="text-amber-800 font-sans leading-relaxed text-[11px]">
+                                        When creating a Catch-all or routing rule in Cloudflare, <strong>Cloudflare creates the rule in a Disabled state by default</strong>!
+                                        You must toggle the status switch to <strong>Enabled (Active)</strong>. If it remains disabled, any email sent to <span className="font-mono font-semibold text-amber-950">@{dom.name}</span> will bounce immediately with <code className="bg-amber-100 text-amber-950 px-1 py-0.5 rounded text-[10px] font-mono font-bold">550 5.1.1 Address not found</code>.
+                                      </p>
+                                    </div>
+                                  </div>
+
+                                  {/* Option 2: 5-Line Cloudflare Email Worker Relay */}
+                                  <div className="space-y-3 bg-white border border-[#ECE3D6] rounded-xl p-3.5">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                      <div>
+                                        <div className="flex items-center space-x-2">
+                                          <span className="text-xs font-bold font-mono text-stone-900">
+                                            Option 2: 5-Line Cloudflare Email Worker Relay
+                                          </span>
+                                          <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full">
+                                            Self-Serve Setup
+                                          </span>
+                                        </div>
+                                        <p className="text-[11px] text-stone-500 font-sans mt-0.5">
+                                          Deploy this lightweight worker in your Cloudflare account to stream incoming emails directly to Mymail:
+                                        </p>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          copyToClipboard(
 `export default {
   async email(message, env, ctx) {
     const res = await fetch("https://mymail-worker.runnly.workers.dev/api/inbound", {
@@ -898,60 +924,47 @@ export function SettingsModal({ isOpen, onClose, onRefreshData }: SettingsModalP
     }
   }
 };`,
-                                          `worker-code-${dom.id}`
-                                        )
-                                      }
-                                      className="px-2 py-0.5 text-[10px] font-mono rounded border border-[#E5DDD0] bg-[#FAF7F2] hover:bg-[#F3EBE0] text-stone-700 flex items-center space-x-1 transition"
-                                    >
-                                      {copiedKey === `worker-code-${dom.id}` ? (
-                                        <>
-                                          <Check className="w-3 h-3 text-emerald-600" />
-                                          <span className="text-emerald-700 font-semibold">Copied!</span>
-                                        </>
-                                      ) : (
-                                        <>
-                                          <Copy className="w-3 h-3 text-stone-400" />
-                                          <span>Copy Worker Code</span>
-                                        </>
-                                      )}
-                                    </button>
-                                  </div>
+                                            `worker-code-${dom.id}`
+                                          )
+                                        }
+                                        className="px-2.5 py-1 text-[11px] font-mono font-medium rounded-lg border border-[#E5DDD0] bg-[#FAF7F2] hover:bg-[#F3EBE0] text-stone-800 flex items-center space-x-1.5 transition self-start sm:self-auto shrink-0 shadow-2xs"
+                                      >
+                                        {copiedKey === `worker-code-${dom.id}` ? (
+                                          <>
+                                            <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                            <span className="text-emerald-700 font-semibold">Copied Code!</span>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <Copy className="w-3.5 h-3.5 text-stone-400" />
+                                            <span>Copy Worker Code</span>
+                                          </>
+                                        )}
+                                      </button>
+                                    </div>
 
-                                  <div className="text-[11px] text-stone-500 space-y-1 font-sans">
-                                    <p>1. In Cloudflare, go to <strong>Workers & Pages &rarr; Create Worker</strong>, paste the code above, and click <strong>Deploy</strong>.</p>
-                                    <p>2. Under <strong>{dom.name} &rarr; Email Routing &rarr; Routing Rules</strong>, set Catch-all Action to <strong>Send to Worker</strong> &rarr; select your worker.</p>
+                                    <div className="text-[11px] text-stone-600 space-y-2 font-sans bg-[#FAF7F2] p-3 rounded-lg border border-[#ECE3D6]">
+                                      <p className="font-semibold font-mono text-stone-800 text-[11px]">Setup Steps in Cloudflare:</p>
+                                      <ol className="list-decimal list-inside space-y-1.5 pl-1 leading-relaxed">
+                                        <li>
+                                          In Cloudflare dashboard, go to <strong>Workers & Pages</strong> &rarr; <strong>Create application</strong> &rarr; <strong>Create Worker</strong> (name e.g. <code className="font-mono text-cupid-900 bg-white px-1 py-0.5 rounded border border-[#E5DDD0]">mymail-inbound</code>) &rarr; click <strong>Deploy</strong>.
+                                        </li>
+                                        <li>
+                                          Click <strong>Edit code</strong>, replace the script with the 5-line code snippet above, and click <strong>Deploy</strong>.
+                                        </li>
+                                        <li>
+                                          Navigate to <strong>{dom.name}</strong> &rarr; <strong>Email Routing</strong> &rarr; <strong>Routing Rules</strong>.
+                                        </li>
+                                        <li>
+                                          Under <strong>Catch-all rule</strong>, set Action to <strong>Send to Worker</strong> &rarr; select <code className="font-mono text-stone-800 bg-white px-1 py-0.5 rounded border border-[#E5DDD0]">mymail-inbound</code> <em>(or select <code className="font-mono text-stone-800 bg-white px-1 py-0.5 rounded border border-[#E5DDD0]">mymail-worker</code> directly if {dom.name} is on the platform account)</em>.
+                                        </li>
+                                        <li className="text-amber-900 font-semibold">
+                                          Toggle the rule switch to <strong>Enabled (Active / ON)</strong> &rarr; click <strong>Save</strong>.
+                                        </li>
+                                      </ol>
+                                    </div>
                                   </div>
                                 </div>
-
-                                {/* Option 2: Standard Email Forwarding */}
-                                <div className="space-y-1.5 bg-white border border-[#ECE3D6] rounded-lg p-3 font-sans">
-                                  <div className="flex items-center justify-between">
-                                    <span className="text-[11px] font-bold font-mono text-stone-800">
-                                      Option 2: Email Forwarding (Any Registrar / DNS)
-                                    </span>
-                                    <button
-                                      type="button"
-                                      onClick={() => copyToClipboard("inbound@runnly.xyz", `fwd-${dom.id}`)}
-                                      className="px-2 py-0.5 text-[10px] font-mono rounded border border-[#E5DDD0] bg-[#FAF7F2] hover:bg-[#F3EBE0] text-stone-700 flex items-center space-x-1 transition"
-                                    >
-                                      {copiedKey === `fwd-${dom.id}` ? (
-                                        <>
-                                          <Check className="w-3 h-3 text-emerald-600" />
-                                          <span className="text-emerald-700 font-semibold">Copied!</span>
-                                        </>
-                                      ) : (
-                                        <>
-                                          <Copy className="w-3 h-3 text-stone-400" />
-                                          <span>Copy inbound@runnly.xyz</span>
-                                        </>
-                                      )}
-                                    </button>
-                                  </div>
-                                  <p className="text-[11px] text-stone-500">
-                                    In your DNS/email provider, set a forwarding rule: <strong>*@{dom.name} &rarr; inbound@runnly.xyz</strong>. Mymail will automatically parse the original recipient and deliver it to your mailbox.
-                                  </p>
-                                </div>
-                              </div>
                             </div>
                           )}
                         </div>
@@ -1157,6 +1170,90 @@ export function SettingsModal({ isOpen, onClose, onRefreshData }: SettingsModalP
                         })}
                       </tbody>
                     </table>
+                  </div>
+
+                  {/* General Inbound Guide (Option 2) */}
+                  <div className="pt-2 border-t border-[#ECE3D6] space-y-3">
+                    <div className="bg-amber-500/10 border-2 border-amber-500/40 rounded-xl p-3.5 flex items-start space-x-3">
+                      <div className="p-1.5 bg-amber-500/20 text-amber-800 rounded-lg shrink-0 mt-0.5">
+                        <AlertTriangle className="w-4 h-4 text-amber-700" />
+                      </div>
+                      <div className="text-xs space-y-1">
+                        <div className="font-bold font-mono text-amber-950 flex items-center space-x-2">
+                          <span>CRITICAL: Enable Rule in Cloudflare Email Routing</span>
+                          <span className="bg-amber-200/90 text-amber-950 text-[10px] px-1.5 py-0.5 rounded font-mono font-bold uppercase tracking-wider">
+                            Must be ON
+                          </span>
+                        </div>
+                        <p className="text-amber-800 font-sans leading-relaxed text-[11px]">
+                          When creating a Catch-all or routing rule in Cloudflare, <strong>Cloudflare defaults the rule to Disabled</strong>! You must toggle the switch to <strong>Enabled (Active)</strong>. If disabled, all incoming emails will bounce with <code className="bg-amber-100 text-amber-950 px-1 py-0.5 rounded text-[10px] font-mono font-bold">550 5.1.1 Address not found</code>.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 bg-[#FAF7F2] border border-[#E5DDD0] rounded-xl p-3.5">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div>
+                          <div className="flex items-center space-x-2">
+                            <span className="text-xs font-bold font-mono text-stone-900">
+                              Option 2: 5-Line Cloudflare Email Worker Relay
+                            </span>
+                            <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full">
+                              Self-Serve Setup
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-stone-500 font-sans mt-0.5">
+                            Connect any domain by deploying this 5-line forwarder worker in Cloudflare:
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            copyToClipboard(
+`export default {
+  async email(message, env, ctx) {
+    const res = await fetch("https://mymail-worker.runnly.workers.dev/api/inbound", {
+      method: "POST",
+      headers: {
+        "x-inbound-recipient": message.to,
+        "x-inbound-sender": message.from
+      },
+      body: message.raw
+    });
+    if (!res.ok) {
+      message.setReject(\`Inbound error: \${res.status}\`);
+    }
+  }
+};`,
+                              "guide-worker-code"
+                            )
+                          }
+                          className="px-2.5 py-1 text-[11px] font-mono font-medium rounded-lg border border-[#E5DDD0] bg-white hover:bg-stone-50 text-stone-800 flex items-center space-x-1.5 transition self-start sm:self-auto shrink-0 shadow-2xs"
+                        >
+                          {copiedKey === "guide-worker-code" ? (
+                            <>
+                              <Check className="w-3.5 h-3.5 text-emerald-600" />
+                              <span className="text-emerald-700 font-semibold">Copied Code!</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3.5 h-3.5 text-stone-400" />
+                              <span>Copy Worker Code</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                      <div className="text-[11px] text-stone-600 space-y-1.5 font-sans bg-white p-3 rounded-lg border border-[#ECE3D6]">
+                        <p className="font-semibold font-mono text-stone-800 text-[11px]">Steps in Cloudflare Email Routing:</p>
+                        <ol className="list-decimal list-inside space-y-1 pl-1 leading-relaxed">
+                          <li>Create a Worker in Cloudflare with the code above and click <strong>Deploy</strong>.</li>
+                          <li>Go to <strong>Your Domain &rarr; Email Routing &rarr; Routing Rules</strong>.</li>
+                          <li>Under <strong>Catch-all rule</strong>, set Action to <strong>Send to Worker</strong> &rarr; select your worker.</li>
+                          <li className="text-amber-900 font-semibold">Switch rule status to <strong>Enabled (Active / ON)</strong> &rarr; Save.</li>
+                        </ol>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

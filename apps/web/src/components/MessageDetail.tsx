@@ -84,6 +84,7 @@ export function MessageDetail({
   const [allowImages, setAllowImages] = useState(false);
   const [quickReplyText, setQuickReplyText] = useState("");
   const [isSendingReply, setIsSendingReply] = useState(false);
+  const [quickReplyError, setQuickReplyError] = useState<string | null>(null);
   const [expandedThreadIds, setExpandedThreadIds] = useState<Set<string>>(new Set());
 
   if (isLoading) {
@@ -146,9 +147,12 @@ export function MessageDetail({
     e.preventDefault();
     if (!quickReplyText.trim() || isSendingReply) return;
     setIsSendingReply(true);
+    setQuickReplyError(null);
     try {
       await onSendQuickReply(quickReplyText);
       setQuickReplyText("");
+    } catch (err: any) {
+      setQuickReplyError(err.message || "Failed to send reply");
     } finally {
       setIsSendingReply(false);
     }
@@ -419,6 +423,19 @@ export function MessageDetail({
             <CornerDownLeft className="w-3.5 h-3.5 text-cupid-700" />
             <span>Quick Reply to {message.fromName || message.fromAddress}</span>
           </div>
+
+          {quickReplyError && (
+            <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-xl font-mono flex items-center justify-between">
+              <span>{quickReplyError}</span>
+              <button
+                type="button"
+                onClick={() => setQuickReplyError(null)}
+                className="text-rose-500 hover:text-rose-800 ml-2 font-bold"
+              >
+                ✕
+              </button>
+            </div>
+          )}
 
           <textarea
             value={quickReplyText}
