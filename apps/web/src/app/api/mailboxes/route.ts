@@ -27,7 +27,17 @@ export async function GET(req: NextRequest) {
       where: whereClause,
       include: {
         domain: {
-          select: { id: true, name: true },
+          select: {
+            id: true,
+            name: true,
+            sendingConfig: {
+              select: {
+                id: true,
+                enabled: true,
+                providerConnectionId: true,
+              },
+            },
+          },
         },
         aliases: {
           where: { enabled: true },

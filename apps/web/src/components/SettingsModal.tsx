@@ -646,6 +646,24 @@ export function SettingsModal({ isOpen, onClose, onRefreshData }: SettingsModalP
                                 </span>
                               )}
 
+                              {dom.sendingConfig?.providerConnection ? (
+                                <span
+                                  className="inline-flex items-center space-x-1 text-[10px] font-mono bg-emerald-50 text-emerald-800 border border-emerald-200 font-semibold px-2 py-0.5 rounded-full"
+                                  title={`Outbound via ${dom.sendingConfig.providerConnection.name || "Custom Resend Key"}`}
+                                >
+                                  <span>Outbound: Custom Key</span>
+                                </span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveTab("providers")}
+                                  className="inline-flex items-center space-x-1 text-[10px] font-mono bg-[#FAF7F2] hover:bg-[#F3EBE0] text-stone-600 border border-[#E5DDD0] font-medium px-2 py-0.5 rounded-full transition"
+                                  title="Emails sent via runnly.xyz on your behalf. Click to connect your Resend key in Email Providers."
+                                >
+                                  <span>Outbound: via runnly.xyz</span>
+                                </button>
+                              )}
+
                               <span className="text-[11px] font-mono text-stone-400">
                                 {dom.mailboxes?.length || 0} Mailbox(es)
                               </span>
@@ -1273,6 +1291,17 @@ export function SettingsModal({ isOpen, onClose, onRefreshData }: SettingsModalP
                   <p className="text-xs text-stone-500 mt-1">
                     Connect your own Resend sending API key. The key is encrypted at rest using AES-256-GCM.
                   </p>
+                </div>
+
+                <div className="bg-amber-50 border border-amber-200/80 rounded-xl p-3 text-xs text-amber-900 flex items-start space-x-2 font-sans">
+                  <Info className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                  <div className="leading-relaxed text-[11px]">
+                    <strong>Important for Custom Domains:</strong> The platform&apos;s default Resend key only sends for <strong>{baseDomainName}</strong>. If you send an email from a custom domain without your own key, it will be sent on your behalf via <strong>{baseDomainName}</strong> (with replies routed back to your custom mailbox). To send directly from your domain, create a free API key at{" "}
+                    <a href="https://resend.com" target="_blank" rel="noreferrer" className="underline font-semibold hover:text-amber-950">
+                      resend.com
+                    </a>
+                    , verify your domain there, and link your key below.
+                  </div>
                 </div>
 
                 {providerMessage && (

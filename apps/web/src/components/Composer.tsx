@@ -12,6 +12,7 @@ import {
   Minus,
   Maximize2,
   GripHorizontal,
+  Info,
 } from "lucide-react";
 import { cn, formatBytes } from "@/lib/utils";
 
@@ -19,6 +20,15 @@ interface MailboxOption {
   id: string;
   address: string;
   displayName: string | null;
+  domain?: {
+    id: string;
+    name: string;
+    sendingConfig?: {
+      id: string;
+      enabled: boolean;
+      providerConnectionId: string | null;
+    } | null;
+  } | null;
 }
 
 export interface ComposeInitialState {
@@ -145,6 +155,16 @@ export function Composer({
   if (!isOpen) return null;
 
   const currentSender = mailboxes.find((m) => m.id === selectedMailboxId) || mailboxes[0];
+  const baseDomain = "runnly.xyz";
+  const senderDomainName =
+    currentSender?.domain?.name ||
+    (currentSender?.address ? currentSender.address.split("@")[1] : "");
+  const isCustomDomainSender =
+    Boolean(senderDomainName) && senderDomainName.toLowerCase() !== baseDomain.toLowerCase();
+  const hasCustomKey = Boolean(
+    currentSender?.domain?.sendingConfig?.providerConnectionId &&
+      currentSender?.domain?.sendingConfig?.enabled
+  );
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -333,6 +353,18 @@ export function Composer({
             ))}
           </select>
         </div>
+
+        {/* Custom Domain Outbound Notice */}
+        {isCustomDomainSender && !hasCustomKey && (
+          <div className="bg-amber-50 border border-amber-200/80 rounded-xl px-3 py-2 text-[11px] font-sans text-amber-900 flex items-start space-x-2">
+            <Info className="w-3.5 h-3.5 text-amber-700 shrink-0 mt-0.5" />
+            <div className="leading-tight">
+              <span>
+                <strong>Note:</strong> You haven&apos;t added your own Resend key for <strong>@{senderDomainName}</strong> yet. This email will be sent on your behalf via <strong>runnly.xyz</strong> (replies will still arrive at <strong>{currentSender?.address}</strong>). To send directly from your domain, add your Resend key in Settings &rarr; Email Providers.
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* To Field */}
         <div className="flex items-center text-xs border-b border-[#ECE3D6] pb-2 font-mono">

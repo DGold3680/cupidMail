@@ -117,10 +117,24 @@ export async function dispatchOutgoingEmail(
     content: att.content, // base64
   }));
 
+  const baseDomain = process.env.NEXT_PUBLIC_BASE_DOMAIN || "runnly.xyz";
+  const isCustomDomain = mailbox.domain.name.toLowerCase() !== baseDomain.toLowerCase();
+  const hasCustomProvider = Boolean(providerConnectionId);
+
   try {
-    const fromSender = payload.fromName
-      ? `${payload.fromName} <${payload.fromAddress}>`
-      : payload.fromAddress;
+    let fromSender: string;
+    const replyToAddress = payload.replyTo || payload.fromAddress;
+
+    if (isCustomDomain && !hasCustomProvider) {
+      // Sent on their behalf via platform domain
+      const platformSender = `${mailbox.localPart}@${baseDomain}`;
+      const displayName = payload.fromName || mailbox.displayName || mailbox.address;
+      fromSender = `${displayName} (via ${baseDomain}) <${platformSender}>`;
+    } else {
+      fromSender = payload.fromName
+        ? `${payload.fromName} <${payload.fromAddress}>`
+        : payload.fromAddress;
+    }
 
     const emailOptions: any = {
       from: fromSender,
@@ -131,7 +145,7 @@ export async function dispatchOutgoingEmail(
       ...(!payload.htmlBody && !payload.textBody ? { text: "" } : {}),
       ...(ccList && ccList.length > 0 ? { cc: ccList } : {}),
       ...(bccList && bccList.length > 0 ? { bcc: bccList } : {}),
-      ...(payload.replyTo ? { replyTo: payload.replyTo } : {}),
+      replyTo: replyToAddress,
       ...(Object.keys(headers).length > 0 ? { headers } : {}),
       ...(attachments && attachments.length > 0 ? { attachments } : {}),
     };
