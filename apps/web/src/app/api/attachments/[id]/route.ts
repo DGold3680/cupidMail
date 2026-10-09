@@ -10,10 +10,11 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: { id: string } | Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const resolvedParams = await context.params;
+    const { id } = resolvedParams;
 
     const attachment = await prisma.attachment.findUnique({
       where: { id },
