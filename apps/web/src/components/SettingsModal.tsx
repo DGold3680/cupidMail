@@ -23,6 +23,10 @@ import {
   Inbox,
   FileCheck,
   RefreshCw,
+  Trash2,
+  ChevronDown,
+  ChevronUp,
+  Info,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -46,9 +50,25 @@ export function SettingsModal({ isOpen, onClose, onRefreshData }: SettingsModalP
 
   // Domain states
   const [domains, setDomains] = useState<any[]>([]);
+  const [baseDomainName, setBaseDomainName] = useState<string>("runnly.xyz");
   const [newDomainName, setNewDomainName] = useState("");
   const [isAddingDomain, setIsAddingDomain] = useState(false);
   const [domainError, setDomainError] = useState<string | null>(null);
+  const [verifyingDomainId, setVerifyingDomainId] = useState<string | null>(null);
+  const [verifyMessage, setVerifyMessage] = useState<{ domainId: string; type: "success" | "warning"; text: string } | null>(null);
+  const [expandedDnsDomainId, setExpandedDnsDomainId] = useState<string | null>(null);
+  const [isDeletingDomainId, setIsDeletingDomainId] = useState<string | null>(null);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  const copyToClipboard = (text: string, key: string) => {
+    try {
+      navigator.clipboard.writeText(text);
+      setCopiedKey(key);
+      setTimeout(() => setCopiedKey(null), 2000);
+    } catch (e) {
+      console.error("Clipboard copy failed", e);
+    }
+  };
 
   // Mailbox / Alias states
   const [selectedDomainForMailbox, setSelectedDomainForMailbox] = useState("");
@@ -86,12 +106,78 @@ export function SettingsModal({ isOpen, onClose, onRefreshData }: SettingsModalP
       const data = await res.json();
       if (data.domains) {
         setDomains(data.domains);
+        if (data.baseDomain) {
+          setBaseDomainName(data.baseDomain);
+        }
         if (data.domains.length > 0 && !selectedDomainForMailbox) {
           setSelectedDomainForMailbox(data.domains[0].id);
         }
       }
     } catch (e) {
       console.error("Failed to load domains", e);
+    }
+  };
+
+  const handleVerifyDomain = async (domainId: string) => {
+    setVerifyingDomainId(domainId);
+    setVerifyMessage(null);
+    try {
+      const res = await fetch("/api/domains", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: domainId, action: "verify" }),
+      });
+      const data = await res.json();
+      if (data.verified) {
+        setVerifyMessage({
+          domainId,
+          type: "success",
+          text: data.message || "Domain MX records verified successfully! Inbound routing active.",
+        });
+      } else {
+        setVerifyMessage({
+          domainId,
+          type: "warning",
+          text: data.message || "Cloudflare MX records not yet detected. Please allow 1-2 minutes for DNS propagation.",
+        });
+      }
+      await loadDomains();
+      onRefreshData();
+    } catch (err: any) {
+      setVerifyMessage({
+        domainId,
+        type: "warning",
+        text: err?.message || "Failed to query DNS records",
+      });
+    } finally {
+      setVerifyingDomainId(null);
+    }
+  };
+
+  const handleDeleteDomain = async (domainId: string, domainName: string) => {
+    if (
+      !confirm(
+        `Are you sure you want to remove ${domainName}? This will delete all mailboxes and aliases associated with this domain.`
+      )
+    ) {
+      return;
+    }
+    setIsDeletingDomainId(domainId);
+    try {
+      const res = await fetch(`/api/domains?id=${domainId}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        throw new Error(data.error || "Failed to delete domain");
+      }
+      if (expandedDnsDomainId === domainId) {
+        setExpandedDnsDomainId(null);
+      }
+      await loadDomains();
+      onRefreshData();
+    } catch (err: any) {
+      alert(err?.message || "Failed to delete domain");
+    } finally {
+      setIsDeletingDomainId(null);
     }
   };
 
@@ -361,165 +447,538 @@ export function SettingsModal({ isOpen, onClose, onRefreshData }: SettingsModalP
         {/* Modal Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-[#FAF7F2]/40">
           {/* TAB 1: DOMAINS & MAILBOXES */}
-          {activeTab === "domains" && (
-            <div className="space-y-6">
-              {/* Add Domain Form */}
-              <div className="bg-rose-50/60 border border-rose-200/80 rounded-2xl p-5 space-y-3">
-                <h3 className="text-sm font-bold font-mono text-stone-900 flex items-center space-x-2">
-                  <Globe className="w-4 h-4 text-cupid-700" />
-                  <span>Add Custom Domain</span>
-                </h3>
+          {activeTab === "domains" && (() => {
+            const platformDomain = domains.find((d) => d.name === baseDomainName);
+            const customDomains = domains.filter((d) => d.name !== baseDomainName);
 
-                {domainError && (
-                  <div className="p-2.5 bg-rose-50 text-rose-800 text-xs rounded-xl border border-rose-200 flex items-center space-x-1.5 font-mono">
-                    <AlertCircle className="w-4 h-4 shrink-0" />
-                    <span>{domainError}</span>
+            const getDnsRecords = (domainName: string) => [
+              {
+                type: "MX",
+                name: "@",
+                value: "route1.mx.cloudflare.net",
+                priority: "10",
+                purpose: "Cloudflare Inbound (Priority 10)",
+              },
+              {
+                type: "MX",
+                name: "@",
+                value: "route2.mx.cloudflare.net",
+                priority: "20",
+                purpose: "Cloudflare Inbound (Priority 20)",
+              },
+              {
+                type: "MX",
+                name: "@",
+                value: "route3.mx.cloudflare.net",
+                priority: "30",
+                purpose: "Cloudflare Inbound (Priority 30)",
+              },
+              {
+                type: "TXT",
+                name: "@",
+                value: "v=spf1 include:_spf.mx.cloudflare.net include:resend.com ~all",
+                priority: "-",
+                purpose: "SPF (Inbound Routing & Resend)",
+              },
+              {
+                type: "TXT",
+                name: "_dmarc",
+                value: "v=DMARC1; p=none;",
+                priority: "-",
+                purpose: "DMARC Protection Policy",
+              },
+              {
+                type: "TXT",
+                name: "resend._domainkey",
+                value: "p=MIGfMA0GCSqGSIb3DQEBAQUAA... (copy from Resend tab)",
+                priority: "-",
+                purpose: "DKIM Key (Outbound Signing)",
+              },
+            ];
+
+            const copyAllRecords = (domainName: string) => {
+              const recs = getDnsRecords(domainName);
+              const text = recs
+                .map((r) => `Type: ${r.type}\tName: ${r.name}\tValue: ${r.value}\tPriority: ${r.priority}`)
+                .join("\n");
+              copyToClipboard(text, `all-${domainName}`);
+            };
+
+            return (
+              <div className="space-y-6">
+                {/* 1. Add Custom Domain Card */}
+                <div className="bg-rose-50/60 border border-rose-200/80 rounded-2xl p-5 space-y-3">
+                  <div>
+                    <h3 className="text-sm font-bold font-mono text-stone-900 flex items-center space-x-2">
+                      <Globe className="w-4 h-4 text-cupid-700" />
+                      <span>Connect Your Custom Domain</span>
+                    </h3>
+                    <p className="text-xs text-stone-500 mt-0.5">
+                      Add a domain you own (e.g. <span className="font-mono text-stone-700">jambacademy.com</span>). Newly added domains start as Pending until DNS records are verified.
+                    </p>
                   </div>
-                )}
 
-                <form onSubmit={handleAddDomain} className="flex gap-2">
-                  <input
-                    type="text"
-                    value={newDomainName}
-                    onChange={(e) => setNewDomainName(e.target.value)}
-                    placeholder="e.g. loveletter.com"
-                    className="flex-1 px-3.5 py-2 bg-white text-xs font-mono border border-[#E5DDD0] rounded-xl focus:outline-none focus:border-cupid-600"
-                    required
-                  />
-                  <button
-                    type="submit"
-                    disabled={isAddingDomain}
-                    className="px-4 py-2 bg-gradient-to-r from-cupid-900 to-cupid-800 hover:from-cupid-950 hover:to-cupid-900 text-white text-xs font-mono font-semibold rounded-xl shadow-sm shadow-cupid-900/20 transition disabled:opacity-50"
-                  >
-                    {isAddingDomain ? "Adding..." : "Add Domain"}
-                  </button>
-                </form>
-              </div>
+                  {domainError && (
+                    <div className="p-2.5 bg-rose-50 text-rose-800 text-xs rounded-xl border border-rose-200 flex items-center space-x-1.5 font-mono">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>{domainError}</span>
+                    </div>
+                  )}
 
-              {/* List of Domains */}
-              <div className="space-y-4">
-                <h4 className="text-xs font-bold font-mono text-stone-400 uppercase tracking-wider">
-                  Configured Domains ({domains.length})
-                </h4>
+                  <form onSubmit={handleAddDomain} className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newDomainName}
+                      onChange={(e) => setNewDomainName(e.target.value)}
+                      placeholder="e.g. jambacademy.com"
+                      className="flex-1 px-3.5 py-2 bg-white text-xs font-mono border border-[#E5DDD0] rounded-xl focus:outline-none focus:border-cupid-600"
+                      required
+                    />
+                    <button
+                      type="submit"
+                      disabled={isAddingDomain}
+                      className="px-4 py-2 bg-gradient-to-r from-cupid-900 to-cupid-800 hover:from-cupid-950 hover:to-cupid-900 text-white text-xs font-mono font-semibold rounded-xl shadow-sm shadow-cupid-900/20 transition disabled:opacity-50"
+                    >
+                      {isAddingDomain ? "Adding..." : "Add Domain"}
+                    </button>
+                  </form>
+                </div>
 
-                {domains.map((dom) => (
-                  <div
-                    key={dom.id}
-                    className="border border-[#ECE3D6] rounded-2xl p-4 bg-white space-y-3 shadow-2xs"
-                  >
+                {/* 2. Custom Domains List */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold font-mono text-stone-700 uppercase tracking-wider flex items-center space-x-2">
+                      <span>Custom Domains</span>
+                      <span className="bg-stone-200 text-stone-700 px-1.5 py-0.5 rounded-full text-[10px]">
+                        {customDomains.length}
+                      </span>
+                    </h4>
+                  </div>
+
+                  {customDomains.length === 0 ? (
+                    <div className="border border-dashed border-[#ECE3D6] rounded-2xl p-6 bg-white text-center space-y-2">
+                      <Globe className="w-8 h-8 text-stone-300 mx-auto" />
+                      <p className="text-xs font-mono text-stone-600 font-semibold">No custom domains connected yet</p>
+                      <p className="text-[11px] text-stone-400 max-w-sm mx-auto">
+                        Enter your domain above to configure Cloudflare email routing and custom webmail addresses.
+                      </p>
+                    </div>
+                  ) : (
+                    customDomains.map((dom) => {
+                      const isExpanded = expandedDnsDomainId === dom.id;
+                      const isVerifying = verifyingDomainId === dom.id;
+                      const isDeleting = isDeletingDomainId === dom.id;
+                      const msg = verifyMessage?.domainId === dom.id ? verifyMessage : null;
+
+                      return (
+                        <div
+                          key={dom.id}
+                          className="border border-[#ECE3D6] rounded-2xl p-4 bg-white space-y-3 shadow-2xs"
+                        >
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div className="flex items-center space-x-2">
+                              <span className="font-bold font-mono text-sm text-stone-900">{dom.name}</span>
+
+                              {dom.verificationStatus === "VERIFIED" ? (
+                                <span className="inline-flex items-center space-x-1 text-[10px] font-mono bg-emerald-50 text-emerald-800 border border-emerald-200 font-semibold px-2 py-0.5 rounded-full">
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                  <span>VERIFIED</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center space-x-1 text-[10px] font-mono bg-amber-50 text-amber-800 border border-amber-200 font-semibold px-2 py-0.5 rounded-full">
+                                  <AlertCircle className="w-3 h-3 text-amber-600" />
+                                  <span>PENDING DNS SETUP</span>
+                                </span>
+                              )}
+
+                              <span className="text-[11px] font-mono text-stone-400">
+                                {dom.mailboxes?.length || 0} Mailbox(es)
+                              </span>
+                            </div>
+
+                            {/* Domain Actions */}
+                            <div className="flex items-center space-x-1.5 self-end sm:self-auto">
+                              <button
+                                type="button"
+                                onClick={() => handleVerifyDomain(dom.id)}
+                                disabled={isVerifying}
+                                title="Check Cloudflare DNS records"
+                                className="px-2.5 py-1 text-[11px] font-mono font-medium rounded-lg border border-[#E5DDD0] bg-[#FAF7F2] hover:bg-[#F3EBE0] text-stone-700 flex items-center space-x-1 transition disabled:opacity-50"
+                              >
+                                <RefreshCw className={cn("w-3 h-3 text-stone-500", isVerifying && "animate-spin")} />
+                                <span>{isVerifying ? "Checking..." : "Verify DNS"}</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => setExpandedDnsDomainId(isExpanded ? null : dom.id)}
+                                className="px-2.5 py-1 text-[11px] font-mono font-medium rounded-lg border border-[#E5DDD0] bg-[#FAF7F2] hover:bg-[#F3EBE0] text-stone-700 flex items-center space-x-1 transition"
+                              >
+                                <span>DNS Records</span>
+                                {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteDomain(dom.id, dom.name)}
+                                disabled={isDeleting}
+                                title="Delete domain"
+                                className="p-1.5 text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Verification result feedback message */}
+                          {msg && (
+                            <div
+                              className={cn(
+                                "p-2.5 rounded-xl text-xs flex items-center space-x-1.5 font-mono",
+                                msg.type === "success"
+                                  ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                                  : "bg-amber-50 text-amber-800 border border-amber-200"
+                              )}
+                            >
+                              {msg.type === "success" ? (
+                                <CheckCircle2 className="w-4 h-4 shrink-0" />
+                              ) : (
+                                <AlertCircle className="w-4 h-4 shrink-0" />
+                              )}
+                              <span>{msg.text}</span>
+                            </div>
+                          )}
+
+                          {/* Mailboxes for this domain */}
+                          {dom.mailboxes && dom.mailboxes.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 pt-1">
+                              {dom.mailboxes.map((mb: any) => (
+                                <span
+                                  key={mb.id}
+                                  className="bg-[#FAF7F2] border border-[#ECE3D6] text-stone-700 font-mono text-[11px] px-2 py-1 rounded-lg"
+                                >
+                                  {mb.address}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Expandable DNS Records for this specific domain */}
+                          {isExpanded && (
+                            <div className="pt-2 border-t border-[#ECE3D6] space-y-3">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[11px] font-mono font-bold text-stone-700">
+                                  Required Cloudflare DNS Records for {dom.name}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => copyAllRecords(dom.name)}
+                                  className="px-2 py-1 text-[10px] font-mono font-medium rounded-lg border border-[#E5DDD0] bg-[#FAF7F2] hover:bg-[#F3EBE0] text-stone-700 flex items-center space-x-1 transition"
+                                >
+                                  {copiedKey === `all-${dom.name}` ? (
+                                    <>
+                                      <Check className="w-3 h-3 text-emerald-600" />
+                                      <span className="text-emerald-700 font-semibold">Copied All!</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Copy className="w-3 h-3 text-stone-400" />
+                                      <span>Copy All Records</span>
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-left text-xs border border-[#ECE3D6] rounded-xl divide-y divide-[#ECE3D6]">
+                                  <thead className="bg-[#FAF7F2] text-stone-600 font-mono text-[10px] uppercase">
+                                    <tr>
+                                      <th className="p-2">Type</th>
+                                      <th className="p-2">Name / Host</th>
+                                      <th className="p-2">Value / Target</th>
+                                      <th className="p-2">Priority</th>
+                                      <th className="p-2">Purpose</th>
+                                      <th className="p-2 text-right">Copy</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-[#ECE3D6] font-mono text-[11px] text-stone-700">
+                                    {getDnsRecords(dom.name).map((rec, rIdx) => {
+                                      const rowKey = `${dom.id}-row-${rIdx}`;
+                                      const nameKey = `${dom.id}-name-${rIdx}`;
+                                      const valKey = `${dom.id}-val-${rIdx}`;
+                                      const rowCopied = copiedKey === rowKey;
+
+                                      return (
+                                        <tr key={rIdx} className="hover:bg-[#FAF7F2]/50">
+                                          <td className="p-2 font-bold text-cupid-800">{rec.type}</td>
+
+                                          <td className="p-2">
+                                            <div className="flex items-center space-x-1">
+                                              <span>{rec.name}</span>
+                                              <button
+                                                type="button"
+                                                onClick={() => copyToClipboard(rec.name, nameKey)}
+                                                className="p-0.5 text-stone-400 hover:text-stone-700 rounded transition"
+                                                title="Copy Name"
+                                              >
+                                                {copiedKey === nameKey ? (
+                                                  <Check className="w-3 h-3 text-emerald-600" />
+                                                ) : (
+                                                  <Copy className="w-3 h-3" />
+                                                )}
+                                              </button>
+                                            </div>
+                                          </td>
+
+                                          <td className="p-2 max-w-[280px] truncate" title={rec.value}>
+                                            <div className="flex items-center space-x-1">
+                                              <span className="truncate">{rec.value}</span>
+                                              <button
+                                                type="button"
+                                                onClick={() => copyToClipboard(rec.value, valKey)}
+                                                className="p-0.5 text-stone-400 hover:text-stone-700 rounded transition shrink-0"
+                                                title="Copy Value"
+                                              >
+                                                {copiedKey === valKey ? (
+                                                  <Check className="w-3 h-3 text-emerald-600" />
+                                                ) : (
+                                                  <Copy className="w-3 h-3" />
+                                                )}
+                                              </button>
+                                            </div>
+                                          </td>
+
+                                          <td className="p-2 text-stone-600">{rec.priority}</td>
+
+                                          <td className="p-2 font-sans text-stone-500 text-[11px]">{rec.purpose}</td>
+
+                                          <td className="p-2 text-right">
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                copyToClipboard(
+                                                  `${rec.type} ${rec.name} ${rec.value} ${rec.priority !== "-" ? rec.priority : ""}`.trim(),
+                                                  rowKey
+                                                )
+                                              }
+                                              className="px-2 py-0.5 text-[10px] rounded border border-[#E5DDD0] bg-white hover:bg-stone-50 text-stone-600 transition"
+                                            >
+                                              {rowCopied ? (
+                                                <span className="text-emerald-600 font-semibold">Copied!</span>
+                                              ) : (
+                                                "Copy"
+                                              )}
+                                            </button>
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* 3. Platform Base Domain Card */}
+                {platformDomain && (
+                  <div className="border border-[#ECE3D6] rounded-2xl p-4 bg-[#FAF7F2]/60 space-y-2.5">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-2">
-                        <span className="font-bold font-mono text-sm text-stone-900">{dom.name}</span>
-                        <span className="text-[10px] font-mono bg-emerald-50 text-emerald-800 border border-emerald-200 font-semibold px-2 py-0.5 rounded-full">
-                          {dom.verificationStatus}
+                        <span className="font-bold font-mono text-sm text-stone-900">{platformDomain.name}</span>
+                        <span className="text-[10px] font-mono bg-teal-50 text-teal-800 border border-teal-200 font-semibold px-2 py-0.5 rounded-full">
+                          Platform Host (Built-in)
                         </span>
                       </div>
-
                       <span className="text-xs font-mono text-stone-400">
-                        {dom.mailboxes?.length || 0} Mailbox(es)
+                        {platformDomain.mailboxes?.length || 0} Mailbox(es)
                       </span>
                     </div>
 
-                    {/* Mailboxes for this domain */}
-                    <div className="flex flex-wrap gap-1.5 pt-1">
-                      {dom.mailboxes?.map((mb: any) => (
+                    <p className="text-[11px] text-stone-500 font-sans">
+                      Default serverless domain provided with your Mymail installation. Pre-configured and verified.
+                    </p>
+
+                    <div className="flex flex-wrap gap-1.5 pt-0.5">
+                      {platformDomain.mailboxes?.map((mb: any) => (
                         <span
                           key={mb.id}
-                          className="bg-[#FAF7F2] border border-[#ECE3D6] text-stone-700 font-mono text-[11px] px-2 py-1 rounded-lg"
+                          className="bg-white border border-[#ECE3D6] text-stone-700 font-mono text-[11px] px-2 py-1 rounded-lg"
                         >
                           {mb.address}
                         </span>
                       ))}
                     </div>
                   </div>
-                ))}
-              </div>
+                )}
 
-              {/* Create Mailbox Section */}
-              {domains.length > 0 && (
-                <div className="border border-[#ECE3D6] rounded-2xl p-5 bg-white space-y-3 shadow-2xs">
-                  <h4 className="text-xs font-bold font-mono text-stone-800 flex items-center space-x-2">
-                    <Plus className="w-4 h-4 text-cupid-700" />
-                    <span>Create Mailbox</span>
-                  </h4>
+                {/* 4. Create Mailbox Section */}
+                {domains.length > 0 && (
+                  <div className="border border-[#ECE3D6] rounded-2xl p-5 bg-white space-y-3 shadow-2xs">
+                    <h4 className="text-xs font-bold font-mono text-stone-800 flex items-center space-x-2">
+                      <Plus className="w-4 h-4 text-cupid-700" />
+                      <span>Create Mailbox</span>
+                    </h4>
 
-                  <form onSubmit={handleCreateMailbox} className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                    <select
-                      value={selectedDomainForMailbox}
-                      onChange={(e) => setSelectedDomainForMailbox(e.target.value)}
-                      className="px-3 py-2 bg-[#FAF7F2] text-xs font-mono border border-[#E5DDD0] rounded-xl focus:outline-none"
-                    >
-                      {domains.map((d) => (
-                        <option key={d.id} value={d.id}>
-                          @{d.name}
-                        </option>
-                      ))}
-                    </select>
+                    <form onSubmit={handleCreateMailbox} className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      <select
+                        value={selectedDomainForMailbox}
+                        onChange={(e) => setSelectedDomainForMailbox(e.target.value)}
+                        className="px-3 py-2 bg-[#FAF7F2] text-xs font-mono border border-[#E5DDD0] rounded-xl focus:outline-none"
+                      >
+                        {domains.map((d) => (
+                          <option key={d.id} value={d.id}>
+                            @{d.name} {d.name === baseDomainName ? "(Platform)" : d.verificationStatus === "PENDING" ? "(Pending DNS)" : ""}
+                          </option>
+                        ))}
+                      </select>
 
-                    <input
-                      type="text"
-                      value={newLocalPart}
-                      onChange={(e) => setNewLocalPart(e.target.value)}
-                      placeholder="Username (e.g. contact, info)"
-                      className="px-3 py-2 bg-[#FAF7F2] text-xs font-mono border border-[#E5DDD0] rounded-xl focus:outline-none"
-                      required
-                    />
+                      <input
+                        type="text"
+                        value={newLocalPart}
+                        onChange={(e) => setNewLocalPart(e.target.value)}
+                        placeholder="Username (e.g. contact, info)"
+                        className="px-3 py-2 bg-[#FAF7F2] text-xs font-mono border border-[#E5DDD0] rounded-xl focus:outline-none"
+                        required
+                      />
+
+                      <button
+                        type="submit"
+                        disabled={isAddingMailbox}
+                        className="px-4 py-2 bg-gradient-to-r from-cupid-900 to-cupid-800 hover:from-cupid-950 hover:to-cupid-900 text-white text-xs font-mono font-semibold rounded-xl shadow-sm transition disabled:opacity-50"
+                      >
+                        {isAddingMailbox ? "Creating..." : "Create Mailbox"}
+                      </button>
+                    </form>
+                  </div>
+                )}
+
+                {/* 5. General DNS Guidance & Clipboard Reference */}
+                <div className="border border-[#ECE3D6] rounded-2xl p-5 bg-white space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-xs font-bold font-mono text-stone-800 flex items-center space-x-1.5">
+                        <Info className="w-3.5 h-3.5 text-cupid-700" />
+                        <span>Cloudflare DNS Setup Guide</span>
+                      </h4>
+                      <p className="text-xs text-stone-500 mt-0.5 leading-relaxed font-sans">
+                        Add these records to your domain in Cloudflare DNS. Use the copy buttons to paste directly into Cloudflare.
+                      </p>
+                    </div>
 
                     <button
-                      type="submit"
-                      disabled={isAddingMailbox}
-                      className="px-4 py-2 bg-gradient-to-r from-cupid-900 to-cupid-800 hover:from-cupid-950 hover:to-cupid-900 text-white text-xs font-mono font-semibold rounded-xl shadow-sm transition disabled:opacity-50"
+                      type="button"
+                      onClick={() => copyAllRecords(customDomains[0]?.name || baseDomainName)}
+                      className="px-2.5 py-1 text-xs font-mono font-medium rounded-lg border border-[#E5DDD0] bg-[#FAF7F2] hover:bg-[#F3EBE0] text-stone-700 flex items-center space-x-1.5 transition"
                     >
-                      {isAddingMailbox ? "Creating..." : "Create Mailbox"}
+                      {copiedKey === `all-${customDomains[0]?.name || baseDomainName}` ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-600" />
+                          <span className="text-emerald-700 font-semibold">Copied All Records!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5 text-stone-400" />
+                          <span>Copy All Records</span>
+                        </>
+                      )}
                     </button>
-                  </form>
-                </div>
-              )}
+                  </div>
 
-              {/* Required DNS Records Table */}
-              <div className="border border-[#ECE3D6] rounded-2xl p-5 bg-white space-y-3">
-                <h4 className="text-xs font-bold font-mono text-stone-800">
-                  Required DNS Records (Cloudflare & Resend)
-                </h4>
-                <p className="text-xs text-stone-500 leading-relaxed font-sans">
-                  Add these records to your domain in Cloudflare DNS to enable incoming routing and outbound delivery.
-                </p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs border border-[#ECE3D6] rounded-xl divide-y divide-[#ECE3D6]">
+                      <thead className="bg-[#FAF7F2] text-stone-600 font-mono text-[10px] uppercase">
+                        <tr>
+                          <th className="p-2.5">Type</th>
+                          <th className="p-2.5">Name / Host</th>
+                          <th className="p-2.5">Value / Target</th>
+                          <th className="p-2.5">Priority</th>
+                          <th className="p-2.5">Purpose</th>
+                          <th className="p-2.5 text-right">Copy</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#ECE3D6] font-mono text-[11px] text-stone-700">
+                        {getDnsRecords(customDomains[0]?.name || baseDomainName).map((rec, rIdx) => {
+                          const guideRowKey = `guide-row-${rIdx}`;
+                          const guideNameKey = `guide-name-${rIdx}`;
+                          const guideValKey = `guide-val-${rIdx}`;
 
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs border border-[#ECE3D6] rounded-xl divide-y divide-[#ECE3D6]">
-                    <thead className="bg-[#FAF7F2] text-stone-600 font-mono text-[11px]">
-                      <tr>
-                        <th className="p-2.5">Type</th>
-                        <th className="p-2.5">Name</th>
-                        <th className="p-2.5">Value</th>
-                        <th className="p-2.5">Purpose</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#ECE3D6] font-mono text-[11px] text-stone-700">
-                      <tr>
-                        <td className="p-2.5 font-bold text-cupid-800">MX</td>
-                        <td className="p-2.5">@</td>
-                        <td className="p-2.5">route1.mx.cloudflare.net (Priority 10)</td>
-                        <td className="p-2.5 font-sans text-stone-500">Cloudflare Email Routing</td>
-                      </tr>
-                      <tr>
-                        <td className="p-2.5 font-bold text-cupid-800">TXT</td>
-                        <td className="p-2.5">@</td>
-                        <td className="p-2.5">v=spf1 include:_spf.mx.cloudflare.net include:resend.com ~all</td>
-                        <td className="p-2.5 font-sans text-stone-500">SPF (Inbound & Outbound)</td>
-                      </tr>
-                      <tr>
-                        <td className="p-2.5 font-bold text-cupid-800">TXT</td>
-                        <td className="p-2.5">_dmarc</td>
-                        <td className="p-2.5">v=DMARC1; p=none;</td>
-                        <td className="p-2.5 font-sans text-stone-500">DMARC Protection</td>
-                      </tr>
-                    </tbody>
-                  </table>
+                          return (
+                            <tr key={rIdx} className="hover:bg-[#FAF7F2]/50">
+                              <td className="p-2.5 font-bold text-cupid-800">{rec.type}</td>
+
+                              <td className="p-2.5">
+                                <div className="flex items-center space-x-1.5">
+                                  <span>{rec.name}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => copyToClipboard(rec.name, guideNameKey)}
+                                    className="p-1 text-stone-400 hover:text-stone-700 rounded transition"
+                                    title="Copy Name"
+                                  >
+                                    {copiedKey === guideNameKey ? (
+                                      <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                    ) : (
+                                      <Copy className="w-3.5 h-3.5" />
+                                    )}
+                                  </button>
+                                </div>
+                              </td>
+
+                              <td className="p-2.5">
+                                <div className="flex items-center space-x-1.5">
+                                  <span className="truncate max-w-[280px]">{rec.value}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => copyToClipboard(rec.value, guideValKey)}
+                                    className="p-1 text-stone-400 hover:text-stone-700 rounded transition shrink-0"
+                                    title="Copy Value"
+                                  >
+                                    {copiedKey === guideValKey ? (
+                                      <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                    ) : (
+                                      <Copy className="w-3.5 h-3.5" />
+                                    )}
+                                  </button>
+                                </div>
+                              </td>
+
+                              <td className="p-2.5 text-stone-600">{rec.priority}</td>
+
+                              <td className="p-2.5 font-sans text-stone-500 text-[11px]">{rec.purpose}</td>
+
+                              <td className="p-2.5 text-right">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    copyToClipboard(
+                                      `${rec.type} ${rec.name} ${rec.value} ${rec.priority !== "-" ? rec.priority : ""}`.trim(),
+                                      guideRowKey
+                                    )
+                                  }
+                                  className="px-2 py-1 text-[10px] rounded border border-[#E5DDD0] bg-white hover:bg-stone-50 text-stone-600 transition"
+                                >
+                                  {copiedKey === guideRowKey ? (
+                                    <span className="text-emerald-600 font-semibold">Copied!</span>
+                                  ) : (
+                                    "Copy"
+                                  )}
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* TAB 2: EMAIL PROVIDERS */}
           {activeTab === "providers" && (
