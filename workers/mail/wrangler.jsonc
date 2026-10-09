@@ -7,9 +7,5 @@
 
   "triggers": {
     "crons": ["*/15 * * * *"]
-  },
-
-  "vars": {
-    "CLOUDINARY_CLOUD_NAME": "your-cloud-name"
   }
 }
