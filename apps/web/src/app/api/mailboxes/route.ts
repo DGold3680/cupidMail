@@ -110,7 +110,13 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    return NextResponse.json({ success: true, mailbox });
+    const serializedMailbox = {
+      ...mailbox,
+      quotaBytes: Number(mailbox.quotaBytes),
+      usedBytes: Number(mailbox.usedBytes),
+    };
+
+    return NextResponse.json({ success: true, mailbox: serializedMailbox });
   } catch (error: any) {
     console.error("Error creating mailbox/alias:", error);
     if (error?.code === "P2002") {
