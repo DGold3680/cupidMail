@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
 import { MessageList, MessageListItem } from "@/components/MessageList";
 import { MessageDetail, FullMessage } from "@/components/MessageDetail";
@@ -8,6 +9,9 @@ import { Composer, ComposeInitialState } from "@/components/Composer";
 import { SettingsModal } from "@/components/SettingsModal";
 
 export default function MailDashboard() {
+  const router = useRouter();
+  const [isAuthChecking, setIsAuthChecking] = useState<boolean>(true);
+
   // Navigation & Filter state
   const [currentFolder, setCurrentFolder] = useState<string>("INBOX");
   const [currentMailboxId, setCurrentMailboxId] = useState<string>("all");
@@ -101,14 +105,46 @@ export default function MailDashboard() {
     }
   }, []);
 
-  // Initial load
+  // Check auth session on load
   useEffect(() => {
-    loadMailboxes();
-  }, [loadMailboxes]);
+    let mounted = true;
+    const verifyUser = async () => {
+      try {
+        const res = await fetch("/api/auth/me");
+        if (!res.ok) {
+          router.replace("/login");
+          return;
+        }
+        const data = await res.json();
+        if (!data?.user) {
+          router.replace("/login");
+          return;
+        }
+        if (mounted) {
+          setIsAuthChecking(false);
+        }
+      } catch {
+        router.replace("/login");
+      }
+    };
+    verifyUser();
+    return () => {
+      mounted = false;
+    };
+  }, [router]);
+
+  // Initial load once authenticated
+  useEffect(() => {
+    if (!isAuthChecking) {
+      loadMailboxes();
+    }
+  }, [isAuthChecking, loadMailboxes]);
 
   useEffect(() => {
-    loadMessages();
-  }, [loadMessages]);
+    if (!isAuthChecking) {
+      loadMessages();
+    }
+  }, [isAuthChecking, loadMessages]);
 
   useEffect(() => {
     if (selectedMessageId) {
@@ -261,6 +297,23 @@ export default function MailDashboard() {
       await loadMessageDetail(selectedMessageId);
     }
   };
+
+  if (isAuthChecking) {
+    return (
+      <div className="h-screen w-screen bg-[#FAF7F2] flex flex-col items-center justify-center space-y-4">
+        <div className="relative">
+          <img
+            src="/assets/Logo.png"
+            alt="Cupid Mail"
+            className="w-16 h-16 object-contain animate-pulse"
+          />
+        </div>
+        <p className="text-xs font-mono text-stone-500 tracking-wider">
+          Opening Cupid Mailbox...
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-[#FAF7F2] font-sans overflow-hidden selection:bg-rose-200 selection:text-rose-950">

@@ -9,6 +9,9 @@ import {
   AlertCircle,
   File,
   Heart,
+  Minus,
+  Maximize2,
+  GripHorizontal,
 } from "lucide-react";
 import { cn, formatBytes } from "@/lib/utils";
 
@@ -56,6 +59,68 @@ export function Composer({
   const [attachments, setAttachments] = useState<{ filename: string; content: string; contentType: string; size: number }[]>([]);
   const [isSending, setIsSending] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Draggable & window states
+  const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(false);
+  const dragStartRef = React.useRef<{ mouseX: number; mouseY: number; startX: number; startY: number } | null>(null);
+  const composerRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (isOpen && !position && typeof window !== "undefined") {
+      const width = Math.min(672, window.innerWidth - 32);
+      const height = Math.min(600, window.innerHeight * 0.85);
+      const initialX = Math.max(16, window.innerWidth - width - 24);
+      const initialY = Math.max(16, window.innerHeight - height - 20);
+      setPosition({ x: initialX, y: initialY });
+    }
+  }, [isOpen, position]);
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if ((e.target as HTMLElement).closest("button") || (e.target as HTMLElement).closest("input") || (e.target as HTMLElement).closest("select")) {
+      return;
+    }
+    e.preventDefault();
+    setIsDragging(true);
+
+    const rect = composerRef.current?.getBoundingClientRect();
+    const currentX = rect ? rect.left : (position?.x ?? 0);
+    const currentY = rect ? rect.top : (position?.y ?? 0);
+
+    dragStartRef.current = {
+      mouseX: e.clientX,
+      mouseY: e.clientY,
+      startX: currentX,
+      startY: currentY,
+    };
+
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      if (!dragStartRef.current) return;
+      const deltaX = moveEvent.clientX - dragStartRef.current.mouseX;
+      const deltaY = moveEvent.clientY - dragStartRef.current.mouseY;
+
+      const newX = dragStartRef.current.startX + deltaX;
+      const newY = dragStartRef.current.startY + deltaY;
+
+      const cardWidth = composerRef.current?.offsetWidth || 640;
+      const cardHeight = composerRef.current?.offsetHeight || 500;
+      const clampedX = Math.max(10, Math.min(window.innerWidth - cardWidth - 10, newX));
+      const clampedY = Math.max(10, Math.min(window.innerHeight - 50, newY));
+
+      setPosition({ x: clampedX, y: clampedY });
+    };
+
+    const handlePointerUp = () => {
+      setIsDragging(false);
+      dragStartRef.current = null;
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -182,17 +247,56 @@ export function Composer({
   };
 
   return (
-    <div className="fixed bottom-0 right-6 w-full max-w-2xl bg-white border border-[#ECE3D6] rounded-t-3xl shadow-cupid-lg z-50 overflow-hidden flex flex-col max-h-[85vh]">
-      {/* Composer Header */}
-      <div className="bg-gradient-to-r from-cupid-950 via-cupid-900 to-cupid-800 px-5 py-3 text-white flex items-center justify-between select-none">
-        <div className="flex items-center space-x-2">
-          <img src="/assets/Logo.png" alt="Cupid" className="w-5 h-5 object-contain" />
-          <span className="font-mono font-semibold text-xs tracking-tight">
+    <div
+      ref={composerRef}
+      style={
+        position
+          ? {
+              left: `${position.x}px`,
+              top: `${position.y}px`,
+              bottom: "auto",
+              right: "auto",
+              touchAction: "none",
+            }
+          : undefined
+      }
+      className={cn(
+        "fixed z-50 w-full max-w-2xl bg-white border border-[#ECE3D6] rounded-3xl shadow-cupid-lg overflow-hidden flex flex-col",
+        position ? "" : "bottom-5 right-6 max-h-[85vh]",
+        isDragging && "shadow-2xl ring-2 ring-rose-400/50 select-none",
+        isMinimized ? "h-auto max-h-none" : "max-h-[85vh]"
+      )}
+    >
+      {/* Composer Header (Draggable Bar) */}
+      <div
+        onPointerDown={handlePointerDown}
+        className={cn(
+          "bg-gradient-to-r from-cupid-950 via-cupid-900 to-cupid-800 px-4 py-3 text-white flex items-center justify-between select-none cursor-grab active:cursor-grabbing border-b border-rose-900/40",
+          isDragging && "cursor-grabbing"
+        )}
+        title="Click and drag to move letter card anywhere on screen"
+      >
+        <div className="flex items-center space-x-2 truncate">
+          <GripHorizontal className="w-4 h-4 text-rose-300/70 shrink-0" />
+          <img src="/assets/Logo.png" alt="Cupid" className="w-5 h-5 object-contain shrink-0" />
+          <span className="font-mono font-semibold text-xs tracking-tight truncate">
             {initialState?.subject ? `Reply: ${initialState.subject}` : "Cupid Mail - New Letter"}
           </span>
+          <span className="text-[10px] font-mono text-rose-300/60 hidden sm:inline shrink-0">
+            (Drag across screen)
+          </span>
         </div>
-        <div className="flex items-center space-x-1">
+        <div className="flex items-center space-x-1 shrink-0 ml-2">
           <button
+            type="button"
+            onClick={() => setIsMinimized((prev) => !prev)}
+            className="p-1 hover:bg-rose-900/60 rounded-lg text-rose-200 hover:text-white transition"
+            title={isMinimized ? "Expand" : "Minimize"}
+          >
+            {isMinimized ? <Maximize2 className="w-3.5 h-3.5" /> : <Minus className="w-3.5 h-3.5" />}
+          </button>
+          <button
+            type="button"
             onClick={onClose}
             className="p-1 hover:bg-rose-900/60 rounded-lg text-rose-200 hover:text-white transition"
             title="Close"
@@ -202,13 +306,15 @@ export function Composer({
         </div>
       </div>
 
-      {/* Error Alert */}
-      {errorMsg && (
-        <div className="bg-rose-50 border-b border-rose-200 p-3 text-xs text-rose-800 flex items-center space-x-2">
-          <AlertCircle className="w-4 h-4 shrink-0" />
-          <span>{errorMsg}</span>
-        </div>
-      )}
+      {!isMinimized && (
+        <>
+          {/* Error Alert */}
+          {errorMsg && (
+            <div className="bg-rose-50 border-b border-rose-200 p-3 text-xs text-rose-800 flex items-center space-x-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{errorMsg}</span>
+            </div>
+          )}
 
       {/* Composer Form */}
       <form onSubmit={handleSend} className="flex-1 flex flex-col p-5 space-y-2.5 overflow-y-auto bg-white">
@@ -371,6 +477,8 @@ export function Composer({
           </button>
         </div>
       </form>
+      </>
+      )}
     </div>
   );
 }

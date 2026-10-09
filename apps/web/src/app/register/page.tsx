@@ -1,38 +1,51 @@
 "use client";
 
 import React, { useState } from "react";
-import { ArrowRight, ShieldCheck, Heart, Lock, Mail, UserPlus } from "lucide-react";
+import { ArrowRight, ShieldCheck, Heart, Lock, Mail, User, LogIn } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
-export default function LoginPage() {
+export default function RegisterPage() {
   const router = useRouter();
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const handleSignIn = async (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
     setErrorMsg(null);
 
+    if (password !== confirmPassword) {
+      setErrorMsg("Passwords do not match");
+      return;
+    }
+
+    if (password.length < 6) {
+      setErrorMsg("Password must be at least 6 characters");
+      return;
+    }
+
+    setIsLoading(true);
+
     try {
-      const res = await fetch("/api/auth/login", {
+      const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ name, email, password }),
       });
       const data = await res.json();
 
       if (!res.ok || data.error) {
-        throw new Error(data.error || "Failed to sign in");
+        throw new Error(data.error || "Failed to create account");
       }
 
       router.push("/");
       router.refresh();
     } catch (err: any) {
-      setErrorMsg(err.message || "Failed to sign in. Please verify your credentials.");
+      setErrorMsg(err.message || "Failed to create account");
     } finally {
       setIsLoading(false);
     }
@@ -60,10 +73,10 @@ export default function LoginPage() {
 
           <div>
             <h1 className="text-2xl font-bold font-mono text-stone-900 tracking-tight">
-              Cupid<span className="text-cupid-800">Mail</span>
+              Join Cupid<span className="text-cupid-800">Mail</span>
             </h1>
             <p className="text-xs text-stone-500 font-sans mt-1">
-              Private, serverless multi-domain letters delivered with care
+              Create your account to add and manage your own custom domains
             </p>
           </div>
         </div>
@@ -74,7 +87,24 @@ export default function LoginPage() {
           </div>
         )}
 
-        <form onSubmit={handleSignIn} className="space-y-4 relative z-10">
+        <form onSubmit={handleRegister} className="space-y-4 relative z-10">
+          <div>
+            <label className="block text-xs font-mono font-semibold text-stone-700 mb-1.5">
+              Full Name
+            </label>
+            <div className="relative">
+              <User className="w-4 h-4 text-stone-400 absolute left-3.5 top-3" />
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Jane Doe"
+                className="w-full pl-10 pr-3.5 py-2.5 bg-[#FAF7F2] border border-[#E5DDD0] rounded-xl text-sm focus:outline-none focus:border-cupid-600 focus:bg-white transition text-stone-900 placeholder:text-stone-400 font-mono"
+                required
+              />
+            </div>
+          </div>
+
           <div>
             <label className="block text-xs font-mono font-semibold text-stone-700 mb-1.5">
               Email Address
@@ -85,7 +115,7 @@ export default function LoginPage() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="adsconversionng@gmail.com"
+                placeholder="jane@example.com"
                 className="w-full pl-10 pr-3.5 py-2.5 bg-[#FAF7F2] border border-[#E5DDD0] rounded-xl text-sm focus:outline-none focus:border-cupid-600 focus:bg-white transition text-stone-900 placeholder:text-stone-400 font-mono"
                 required
               />
@@ -93,17 +123,9 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs font-mono font-semibold text-stone-700">
-                Password
-              </label>
-              <Link
-                href="/forgot-password"
-                className="text-[11px] font-mono text-cupid-800 hover:text-cupid-950 hover:underline transition"
-              >
-                Forgot password?
-              </Link>
-            </div>
+            <label className="block text-xs font-mono font-semibold text-stone-700 mb-1.5">
+              Password (min 6 characters)
+            </label>
             <div className="relative">
               <Lock className="w-4 h-4 text-stone-400 absolute left-3.5 top-3" />
               <input
@@ -117,25 +139,42 @@ export default function LoginPage() {
             </div>
           </div>
 
+          <div>
+            <label className="block text-xs font-mono font-semibold text-stone-700 mb-1.5">
+              Confirm Password
+            </label>
+            <div className="relative">
+              <Lock className="w-4 h-4 text-stone-400 absolute left-3.5 top-3" />
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="••••••••••••"
+                className="w-full pl-10 pr-3.5 py-2.5 bg-[#FAF7F2] border border-[#E5DDD0] rounded-xl text-sm focus:outline-none focus:border-cupid-600 focus:bg-white transition text-stone-900 placeholder:text-stone-400 font-mono"
+                required
+              />
+            </div>
+          </div>
+
           <button
             type="submit"
             disabled={isLoading}
             className="w-full py-2.5 bg-gradient-to-r from-cupid-900 via-cupid-800 to-cupid-900 hover:from-cupid-950 hover:to-cupid-800 active:scale-[0.99] disabled:opacity-50 text-white font-mono font-semibold text-sm rounded-xl shadow-md shadow-cupid-900/20 transition flex items-center justify-center space-x-2"
           >
-            <span>{isLoading ? "Signing in..." : "Sign In to Cupid Mail"}</span>
+            <span>{isLoading ? "Creating Account..." : "Create Account"}</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </form>
 
         <div className="pt-2 border-t border-[#ECE3D6] text-center space-y-3 relative z-10">
           <div className="flex items-center justify-center space-x-1 text-xs text-stone-500 font-sans">
-            <span>New to Cupid Mail?</span>
+            <span>Already have an account?</span>
             <Link
-              href="/register"
+              href="/login"
               className="text-cupid-800 font-mono font-bold hover:underline inline-flex items-center space-x-1"
             >
-              <span>Create an account</span>
-              <UserPlus className="w-3.5 h-3.5" />
+              <span>Sign in</span>
+              <LogIn className="w-3.5 h-3.5" />
             </Link>
           </div>
 

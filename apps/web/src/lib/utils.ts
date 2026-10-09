@@ -59,3 +59,18 @@ export function formatBytes(bytes: number, decimals = 1): string {
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
 }
+
+/**
+ * Checks if a sender represents the Runnly System / Cupid Mail system account.
+ */
+export function isRunnlySystemSender(name?: string | null, email?: string | null): boolean {
+  if (!name && !email) return false;
+  const n = (name || "").toLowerCase();
+  const e = (email || "").toLowerCase();
+  return (
+    n.includes("runnly system") ||
+    n.includes("cupid mail") ||
+    e === "system@runnly.xyz" ||
+    e.startsWith("system@")
+  );
+}

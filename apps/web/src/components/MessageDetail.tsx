@@ -18,7 +18,7 @@ import {
   Heart,
   Send,
 } from "lucide-react";
-import { cn, formatFullDate, getInitials, formatBytes } from "@/lib/utils";
+import { cn, formatFullDate, getInitials, formatBytes, isRunnlySystemSender } from "@/lib/utils";
 
 export interface AttachmentItem {
   id: string;
@@ -234,9 +234,19 @@ export function MessageDetail({
                     className="p-3.5 flex items-center justify-between cursor-pointer hover:bg-rose-50/50 transition text-xs"
                   >
                     <div className="flex items-center space-x-2.5 truncate">
-                      <div className="w-6 h-6 rounded-full bg-rose-100 text-cupid-900 flex items-center justify-center font-mono font-bold text-[10px]">
-                        {getInitials(hist.fromName, hist.fromAddress)}
-                      </div>
+                      {isRunnlySystemSender(hist.fromName, hist.fromAddress) ? (
+                        <div className="w-6 h-6 rounded-lg bg-white border border-[#E5DDD0] flex items-center justify-center p-0.5 shrink-0 overflow-hidden shadow-2xs">
+                          <img
+                            src="/assets/Logo.png"
+                            alt="Runnly System"
+                            className="w-full h-full object-contain"
+                          />
+                        </div>
+                      ) : (
+                        <div className="w-6 h-6 rounded-full bg-rose-100 text-cupid-900 flex items-center justify-center font-mono font-bold text-[10px] shrink-0">
+                          {getInitials(hist.fromName, hist.fromAddress)}
+                        </div>
+                      )}
                       <span className="font-semibold text-stone-800">
                         {hist.fromName || hist.fromAddress}
                       </span>
@@ -280,14 +290,29 @@ export function MessageDetail({
           {/* Sender & Recipient Bar */}
           <div className="flex items-start justify-between">
             <div className="flex items-start space-x-3.5">
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-cupid-900 via-cupid-800 to-cupid-900 text-white flex items-center justify-center font-mono font-bold text-sm shadow-sm shadow-cupid-900/25">
-                {getInitials(message.fromName, message.fromAddress)}
-              </div>
+              {isRunnlySystemSender(message.fromName, message.fromAddress) ? (
+                <div className="w-10 h-10 rounded-2xl bg-white border border-[#E5DDD0] shadow-sm shadow-cupid-900/10 flex items-center justify-center p-1 overflow-hidden shrink-0">
+                  <img
+                    src="/assets/Logo.png"
+                    alt="Runnly System"
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+              ) : (
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-cupid-900 via-cupid-800 to-cupid-900 text-white flex items-center justify-center font-mono font-bold text-sm shadow-sm shadow-cupid-900/25 shrink-0">
+                  {getInitials(message.fromName, message.fromAddress)}
+                </div>
+              )}
               <div>
                 <div className="flex items-center space-x-2">
                   <span className="font-bold text-stone-900 text-sm">
                     {message.fromName || message.fromAddress}
                   </span>
+                  {isRunnlySystemSender(message.fromName, message.fromAddress) && (
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold bg-rose-100 text-cupid-800 border border-rose-200">
+                      System
+                    </span>
+                  )}
                   <span className="text-xs font-mono text-stone-400">
                     &lt;{message.fromAddress}&gt;
                   </span>

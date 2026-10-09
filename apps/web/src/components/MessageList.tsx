@@ -11,7 +11,7 @@ import {
   Square,
   Heart,
 } from "lucide-react";
-import { cn, formatEmailDate } from "@/lib/utils";
+import { cn, formatEmailDate, isRunnlySystemSender } from "@/lib/utils";
 
 export interface MessageListItem {
   id: string;
@@ -200,6 +200,15 @@ export function MessageList({
                   <div className="flex items-center space-x-1.5 truncate">
                     {!msg.isRead && (
                       <span className="w-2 h-2 rounded-full bg-cupid-600 shrink-0 ring-2 ring-rose-200" />
+                    )}
+                    {isRunnlySystemSender(msg.fromName, msg.fromAddress) && (
+                      <div className="w-4 h-4 rounded-md bg-white border border-[#E5DDD0] flex items-center justify-center p-0.5 shrink-0 overflow-hidden shadow-2xs" title="Runnly System">
+                        <img
+                          src="/assets/Logo.png"
+                          alt="Runnly System"
+                          className="w-full h-full object-contain"
+                        />
+                      </div>
                     )}
                     <span
                       className={cn(

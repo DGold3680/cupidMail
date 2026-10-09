@@ -1,71 +1,188 @@
 import PostalMime from "postal-mime";
 import { Env, ForwardableEmailMessage } from "./types";
 import { uploadRawEmailToCloudinary, uploadAttachmentToCloudinary } from "./cloudinary";
-import { createSupabase, validateRecipient, findOrCreateThread } from "./supabase";
+import {
+  createSupabase,
+  validateRecipient,
+  resolveCandidateRecipients,
+  findAdminMailbox,
+  findOrCreateThread,
+  RecipientLookup,
+} from "./supabase";
 
 /**
- * Main email ingestion handler for Cloudflare Email Routing
+ * Extracts all candidate recipient addresses from envelope, parsed headers, and routing metadata
  */
-export async function handleIncomingEmail(
-  message: ForwardableEmailMessage,
-  env: Env,
-  ctx: ExecutionContext
-): Promise<void> {
-  const supabase = createSupabase(env);
-  const recipient = message.to.toLowerCase();
-  const sender = message.from;
+export function extractCandidateRecipients(
+  envelopeTo?: string,
+  parsed?: any,
+  rawHeaders?: Headers | Record<string, string>
+): string[] {
+  const candidates = new Set<string>();
 
-  console.log(`[Ingestion] Received email from ${sender} to ${recipient}`);
+  // 1. Envelope To
+  if (envelopeTo) {
+    const cleanTo = envelopeTo.toLowerCase().trim();
+    candidates.add(cleanTo);
 
-  // 1. Validate Recipient
-  const recipientLookup = await validateRecipient(supabase, recipient);
-  if (!recipientLookup) {
-    console.warn(`[Ingestion] Unknown or disabled recipient: ${recipient}`);
-    message.setReject("Unknown recipient address");
-    return;
+    // Plus addressing: e.g. inbound+admin=jambacademy.com@runnly.xyz
+    const plusMatch = cleanTo.match(
+      /^([a-z0-9._%+-]+)\+([a-z0-9._%+-]+)=([a-z0-9.-]+\.[a-z]{2,})@[a-z0-9.-]+$/i
+    );
+    if (plusMatch) {
+      candidates.add(`${plusMatch[2]}@${plusMatch[3]}`.toLowerCase().trim());
+    }
+
+    // Plus addressing with @: e.g. inbound+admin@jambacademy.com@runnly.xyz
+    const plusAtMatch = cleanTo.match(
+      /^([a-z0-9._%+-]+)\+([a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,})@[a-z0-9.-]+$/i
+    );
+    if (plusAtMatch) {
+      candidates.add(plusAtMatch[2].toLowerCase().trim());
+    }
   }
 
-  // 2. Read raw email bytes into buffer
-  const rawBytes = await new Response(message.raw).arrayBuffer();
+  // 2. MIME To addresses
+  if (parsed?.to && Array.isArray(parsed.to)) {
+    for (const item of parsed.to) {
+      if (item.address) {
+        candidates.add(item.address.toLowerCase().trim());
+      }
+    }
+  }
+
+  // 3. MIME Cc addresses
+  if (parsed?.cc && Array.isArray(parsed.cc)) {
+    for (const item of parsed.cc) {
+      if (item.address) {
+        candidates.add(item.address.toLowerCase().trim());
+      }
+    }
+  }
+
+  // 4. PostalMime parsed headers (e.g. X-Original-To, X-Forwarded-To, Delivered-To, Envelope-To)
+  if (parsed?.headers && Array.isArray(parsed.headers)) {
+    for (const h of parsed.headers) {
+      const key = (h.key || "").toLowerCase();
+      if (
+        key === "x-original-to" ||
+        key === "x-forwarded-to" ||
+        key === "delivered-to" ||
+        key === "envelope-to" ||
+        key === "x-envelope-to" ||
+        key === "to"
+      ) {
+        if (typeof h.value === "string") {
+          const match = h.value.match(/<([^>]+)>/) || [null, h.value];
+          const addr = match[1] ? match[1].toLowerCase().trim() : "";
+          if (addr && addr.includes("@")) {
+            candidates.add(addr);
+          }
+        }
+      }
+    }
+  }
+
+  return Array.from(candidates);
+}
+
+export interface IngestionResult {
+  messageId: string;
+  ingestionId: string;
+  deliveredTo: string[];
+}
+
+/**
+ * Universal email ingestion function:
+ * Accepts raw email bytes, parses MIME, discovers active mailbox recipients,
+ * persists raw message and attachments in Cloudinary, and links into INBOX.
+ */
+export async function ingestEmailBytes(
+  rawBytes: ArrayBuffer | Uint8Array,
+  options: {
+    envelopeTo?: string;
+    envelopeFrom?: string;
+    env: Env;
+    allowAdminFallback?: boolean;
+  }
+): Promise<IngestionResult> {
+  const { envelopeTo, envelopeFrom, env, allowAdminFallback = true } = options;
+  const supabase = createSupabase(env);
+
+  // 1. Parse email with PostalMime
+  const parser = new PostalMime();
+  const parsed = await parser.parse(rawBytes);
+
+  // 2. Discover all candidate recipients
+  const candidateAddresses = extractCandidateRecipients(envelopeTo, parsed);
+  console.log(`[Ingestion] Candidate recipient addresses:`, candidateAddresses);
+
+  // 3. Resolve candidate addresses against active mailboxes & aliases in Supabase
+  let matchingLookups = await resolveCandidateRecipients(supabase, candidateAddresses);
+
+  // 4. Verification Email Fallback (e.g. Cloudflare Email Routing verify sent to inbound@runnly.xyz)
+  const subject = parsed.subject || "";
+  const sender = parsed.from?.address || envelopeFrom || "unknown";
+  const isVerificationEmail =
+    subject.toLowerCase().includes("verify") ||
+    subject.toLowerCase().includes("verification") ||
+    sender.toLowerCase().includes("cloudflare.com");
+
+  if (matchingLookups.length === 0 && allowAdminFallback && isVerificationEmail) {
+    const adminLookup = await findAdminMailbox(supabase);
+    if (adminLookup) {
+      console.log(`[Ingestion] Routing verification email to platform admin mailbox: ${adminLookup.address}`);
+      matchingLookups = [adminLookup];
+    }
+  }
+
+  if (matchingLookups.length === 0) {
+    throw new Error(
+      `No active mailbox found for candidate recipients: [${candidateAddresses.join(", ")}]`
+    );
+  }
+
+  const primaryRecipient = matchingLookups[0].address;
+  const mailboxIds = matchingLookups.map((m) => m.mailboxId);
+
+  // 5. Upload Raw Email to Cloudinary BEFORE processing (Durable source of truth!)
   const ingestionId = crypto.randomUUID();
   const rawStorageKey = `emails/raw/${ingestionId}`;
 
-  // 3. Upload Raw Email to Cloudinary BEFORE parsing (Durable source of truth!)
   let rawUploadResult: any;
   try {
     rawUploadResult = await uploadRawEmailToCloudinary(env, rawStorageKey, rawBytes);
     console.log(`[Ingestion] Successfully persisted raw email to Cloudinary: ${rawUploadResult.secure_url}`);
   } catch (err: any) {
     console.error(`[Ingestion] Failed to upload raw email to Cloudinary:`, err);
-    message.setReject("Internal storage error");
-    throw err;
+    throw new Error(`Cloudinary raw storage error: ${err?.message || String(err)}`);
   }
 
-  // 4. Create Ingestion Record in Supabase
+  // 6. Record Ingestion Job in Supabase
   await supabase.from("ingestion_jobs").insert({
     id: ingestionId,
     storage_key: rawUploadResult.secure_url || rawStorageKey,
-    recipient,
+    recipient: primaryRecipient,
     sender,
     status: "PROCESSING",
     attempt_count: 1,
     received_at: new Date().toISOString(),
   });
 
-  // 5. Parse and Process Message
+  // 7. Parse and Process Content
   try {
-    await processEmailContent({
+    const messageId = await processEmailContent({
       ingestionId,
       rawBytes,
       rawStorageKey: rawUploadResult.secure_url || rawStorageKey,
-      mailboxId: recipientLookup.mailboxId,
-      recipient,
+      mailboxIds,
+      recipient: primaryRecipient,
       sender,
       env,
       supabase,
     });
 
-    // Mark ingestion job completed
+    // Mark completed
     await supabase
       .from("ingestion_jobs")
       .update({
@@ -74,7 +191,13 @@ export async function handleIncomingEmail(
       })
       .eq("id", ingestionId);
 
-    console.log(`[Ingestion] Successfully processed email ${ingestionId}`);
+    console.log(`[Ingestion] Successfully processed email ${ingestionId} -> ${messageId}`);
+
+    return {
+      messageId,
+      ingestionId,
+      deliveredTo: matchingLookups.map((m) => m.address),
+    };
   } catch (err: any) {
     console.error(`[Ingestion] Error during email parsing/saving:`, err);
     await supabase
@@ -84,14 +207,46 @@ export async function handleIncomingEmail(
         last_error: err?.message || String(err),
       })
       .eq("id", ingestionId);
+    throw err;
+  }
+}
+
+/**
+ * Cloudflare Email Routing event handler
+ */
+export async function handleIncomingEmail(
+  message: ForwardableEmailMessage,
+  env: Env,
+  ctx: ExecutionContext
+): Promise<void> {
+  const recipient = message.to.toLowerCase();
+  const sender = message.from;
+
+  console.log(`[Ingestion] Received email via Cloudflare Email Routing from ${sender} to ${recipient}`);
+
+  try {
+    const rawBytes = await new Response(message.raw).arrayBuffer();
+    const result = await ingestEmailBytes(rawBytes, {
+      envelopeTo: recipient,
+      envelopeFrom: sender,
+      env,
+      allowAdminFallback: true,
+    });
+    console.log(
+      `[Ingestion] Successfully ingested email ${result.messageId} delivered to [${result.deliveredTo.join(", ")}]`
+    );
+  } catch (err: any) {
+    console.warn(`[Ingestion] Rejected email:`, err?.message || err);
+    message.setReject(err?.message || "Unknown recipient address");
   }
 }
 
 interface ProcessOptions {
   ingestionId: string;
-  rawBytes: ArrayBuffer;
+  rawBytes: ArrayBuffer | Uint8Array;
   rawStorageKey: string;
-  mailboxId: string;
+  mailboxId?: string;
+  mailboxIds?: string[];
   recipient: string;
   sender: string;
   env: Env;
@@ -242,17 +397,26 @@ export async function processEmailContent(options: ProcessOptions): Promise<stri
   }
 
   // 5. Link to Mailbox in INBOX folder
-  await supabase.from("mailbox_messages").insert({
-    id: crypto.randomUUID(),
-    mailbox_id: mailboxId,
-    message_id: messageId,
-    folder: "INBOX",
-    is_read: false,
-    is_starred: false,
-    is_archived: false,
-    is_deleted: false,
-    created_at: new Date().toISOString(),
-  });
+  const targetMailboxIds =
+    options.mailboxIds && options.mailboxIds.length > 0
+      ? options.mailboxIds
+      : options.mailboxId
+      ? [options.mailboxId]
+      : [];
+
+  for (const targetId of targetMailboxIds) {
+    await supabase.from("mailbox_messages").insert({
+      id: crypto.randomUUID(),
+      mailbox_id: targetId,
+      message_id: messageId,
+      folder: "INBOX",
+      is_read: false,
+      is_starred: false,
+      is_archived: false,
+      is_deleted: false,
+      created_at: new Date().toISOString(),
+    });
+  }
 
   return messageId;
 }

@@ -1,16 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma, MailboxStatus, Role } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
+
+const BASE_DOMAIN = process.env.NEXT_PUBLIC_BASE_DOMAIN || "runnly.xyz";
 
 /**
  * GET /api/mailboxes
  * Returns all active mailboxes and aliases grouped by domain
  */
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const user = await getSessionUser(req);
+    const whereClause: any = { status: MailboxStatus.ACTIVE };
+
+    if (user && user.role !== Role.ADMIN && user.role !== Role.OWNER) {
+      whereClause.OR = [
+        { domain: { ownerId: user.id } },
+        { members: { some: { userId: user.id } } },
+        { domain: { name: BASE_DOMAIN } },
+      ];
+    }
+
     const mailboxes = await prisma.mailbox.findMany({
-      where: { status: MailboxStatus.ACTIVE },
+      where: whereClause,
       include: {
         domain: {
           select: { id: true, name: true },
@@ -59,15 +73,19 @@ export async function POST(req: NextRequest) {
     const cleanLocalPart = localPart.toLowerCase().trim();
     const fullAddress = `${cleanLocalPart}@${domain.name}`;
 
-    let user = await prisma.user.findFirst();
+    let user = await getSessionUser(req);
     if (!user) {
-      user = await prisma.user.create({
-        data: {
-          id: "00000000-0000-0000-0000-000000000001",
-          email: "admin@example.com",
-          name: "Default Admin",
-        },
-      });
+      user = await prisma.user.findFirst();
+    }
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (user.role !== Role.ADMIN && user.role !== Role.OWNER && domain.ownerId !== user.id) {
+      return NextResponse.json(
+        { error: "You are not authorized to create mailboxes on this domain" },
+        { status: 403 }
+      );
     }
 
     if (type === "alias") {

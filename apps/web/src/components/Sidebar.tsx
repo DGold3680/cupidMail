@@ -14,8 +14,9 @@ import {
   Globe,
   Layers,
   Heart,
+  LogOut,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, getInitials } from "@/lib/utils";
 
 interface MailboxItem {
   id: string;
@@ -47,6 +48,31 @@ export function Sidebar({
   onOpenComposer,
   onOpenSettings,
 }: SidebarProps) {
+  const [currentUser, setCurrentUser] = React.useState<{
+    id: string;
+    email: string;
+    name?: string | null;
+    role?: string;
+  } | null>(null);
+
+  React.useEffect(() => {
+    fetch("/api/auth/me")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.user) {
+          setCurrentUser(data.user);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch (e) {}
+    window.location.href = "/login";
+  };
+
   const folders = [
     { id: "INBOX", label: "Inbox", icon: Inbox, count: unreadCount },
     { id: "STARRED", label: "Starred", icon: Star },
@@ -199,15 +225,49 @@ export function Sidebar({
         </div>
       </div>
 
-      {/* Footer */}
-      <div className="p-3 border-t border-[#ECE3D6] bg-white/60">
+      {/* Footer & User Profile */}
+      <div className="p-3 border-t border-[#ECE3D6] bg-white/60 space-y-2">
         <button
           onClick={onOpenSettings}
-          className="w-full flex items-center space-x-2.5 px-3 py-2.5 rounded-xl text-xs font-mono font-medium text-stone-700 hover:bg-rose-50 hover:text-cupid-900 border border-transparent hover:border-rose-200/60 transition"
+          className="w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-xs font-mono font-medium text-stone-700 hover:bg-rose-50 hover:text-cupid-900 border border-transparent hover:border-rose-200/60 transition"
         >
           <Settings className="w-4 h-4 text-stone-400" />
           <span>Domain settings</span>
         </button>
+
+        {/* User Account Bar */}
+        {currentUser && (
+          <div className="pt-2 border-t border-[#ECE3D6] flex items-center justify-between px-1">
+            <div className="flex items-center space-x-2 truncate">
+              <div className="w-7 h-7 rounded-xl bg-cupid-900 text-white font-mono font-bold text-[11px] flex items-center justify-center shrink-0 shadow-xs">
+                {getInitials(currentUser.name, currentUser.email)}
+              </div>
+              <div className="truncate text-left">
+                <div className="flex items-center space-x-1">
+                  <span className="text-xs font-semibold text-stone-800 truncate font-mono">
+                    {currentUser.name || currentUser.email.split("@")[0]}
+                  </span>
+                  {currentUser.role === "ADMIN" && (
+                    <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-rose-100 text-cupid-900 border border-rose-200">
+                      Admin
+                    </span>
+                  )}
+                </div>
+                <div className="text-[10px] font-mono text-stone-400 truncate max-w-[130px]" title={currentUser.email}>
+                  {currentUser.email}
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={handleLogout}
+              className="p-1.5 text-stone-400 hover:text-cupid-900 hover:bg-rose-50 rounded-lg transition shrink-0"
+              title="Sign Out"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
       </div>
     </aside>
   );

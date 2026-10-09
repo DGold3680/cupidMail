@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma, VerificationStatus, ServiceStatus } from "@/lib/db";
+import { prisma, VerificationStatus, ServiceStatus, Role } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -9,9 +10,18 @@ const BASE_DOMAIN = process.env.NEXT_PUBLIC_BASE_DOMAIN || "runnly.xyz";
  * GET /api/domains
  * Returns all domains with their mailboxes, aliases, and sending configs.
  */
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const user = await getSessionUser(req);
+    const whereClause =
+      user && user.role !== Role.ADMIN && user.role !== Role.OWNER
+        ? {
+            OR: [{ ownerId: user.id }, { name: BASE_DOMAIN }],
+          }
+        : {};
+
     const domains = await prisma.domain.findMany({
+      where: whereClause,
       include: {
         mailboxes: {
           select: {
@@ -77,16 +87,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid domain format (e.g. example.com)" }, { status: 400 });
     }
 
-    // Get or create owner user
-    let user = await prisma.user.findFirst();
+    // Get current authenticated user or fallback
+    let user = await getSessionUser(req);
     if (!user) {
-      user = await prisma.user.create({
-        data: {
-          id: "00000000-0000-0000-0000-000000000001",
-          email: "admin@example.com",
-          name: "Default Admin",
-        },
-      });
+      user = await prisma.user.findFirst();
+      if (!user) {
+        user = await prisma.user.create({
+          data: {
+            id: "00000000-0000-0000-0000-000000000001",
+            email: "adsconversionng@gmail.com",
+            name: "Cupid Admin",
+            role: Role.ADMIN,
+          },
+        });
+      }
     }
 
     // Required DNS records template
@@ -297,6 +311,16 @@ export async function DELETE(req: NextRequest) {
         { error: "Cannot delete the platform base domain" },
         { status: 400 }
       );
+    }
+
+    const sessionUser = await getSessionUser(req);
+    if (sessionUser && sessionUser.role !== Role.ADMIN && sessionUser.role !== Role.OWNER) {
+      if (domain.ownerId !== sessionUser.id) {
+        return NextResponse.json(
+          { error: "You are not authorized to delete this domain" },
+          { status: 403 }
+        );
+      }
     }
 
     // Cascade delete mailboxes, aliases, configs

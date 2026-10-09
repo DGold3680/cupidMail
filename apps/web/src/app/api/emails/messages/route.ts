@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma, MailFolder } from "@mymail/database";
+import { prisma, MailFolder, Role } from "@mymail/database";
+import { getSessionUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -9,6 +10,7 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(req: NextRequest) {
   try {
+    const user = await getSessionUser(req);
     const { searchParams } = new URL(req.url);
     const folderParam = (searchParams.get("folder") || "INBOX").toUpperCase();
     const mailboxId = searchParams.get("mailboxId");
@@ -23,6 +25,16 @@ export async function GET(req: NextRequest) {
     // 1. Mailbox filter
     if (mailboxId && mailboxId !== "all") {
       where.mailboxId = mailboxId;
+    } else {
+      if (user && user.role !== Role.ADMIN && user.role !== Role.OWNER) {
+        where.mailbox = {
+          OR: [
+            { domain: { ownerId: user.id } },
+            { members: { some: { userId: user.id } } },
+            { domain: { name: "runnly.xyz" } },
+          ],
+        };
+      }
     }
 
     // 2. Folder filter & flags

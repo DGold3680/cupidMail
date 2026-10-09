@@ -55,7 +55,7 @@ export function sanitizeEmailHtml(
           return {
             tagName: "span",
             attribs: {
-              class: "blocked-remote-image inline-block p-1 bg-teal-50 text-teal-800 text-xs rounded border border-teal-200",
+              class: "blocked-remote-image inline-block p-1 bg-rose-50 text-rose-800 text-xs rounded border border-rose-200",
               "data-original-src": attribs.src,
             },
             text: `[Remote Image Hidden]`,

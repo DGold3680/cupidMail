@@ -27,6 +27,7 @@ import {
   ChevronDown,
   ChevronUp,
   Info,
+  Code2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -58,6 +59,9 @@ export function SettingsModal({ isOpen, onClose, onRefreshData }: SettingsModalP
   const [verifyMessage, setVerifyMessage] = useState<{ domainId: string; type: "success" | "warning"; text: string } | null>(null);
   const [expandedDnsDomainId, setExpandedDnsDomainId] = useState<string | null>(null);
   const [isDeletingDomainId, setIsDeletingDomainId] = useState<string | null>(null);
+  const [domainToDelete, setDomainToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [domainDeleteError, setDomainDeleteError] = useState<string | null>(null);
+  const [mailboxError, setMailboxError] = useState<string | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   const copyToClipboard = (text: string, key: string) => {
@@ -69,7 +73,55 @@ export function SettingsModal({ isOpen, onClose, onRefreshData }: SettingsModalP
       console.error("Clipboard copy failed", e);
     }
   };
+  const [testingInboundDomainId, setTestingInboundDomainId] = useState<string | null>(null);
+  const [testInboundResult, setTestInboundResult] = useState<{
+    domainId: string;
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
 
+  const handleSendTestInbound = async (domain: any) => {
+    setTestingInboundDomainId(domain.id);
+    setTestInboundResult(null);
+
+    const targetAddress =
+      domain.mailboxes && domain.mailboxes.length > 0
+        ? domain.mailboxes[0].address
+        : `admin@${domain.name}`;
+
+    try {
+      const res = await fetch("/api/webhooks/inbound", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: targetAddress,
+          from: "external-tester@runnly.xyz",
+          subject: `Inbound Webhook Verification for ${domain.name}`,
+          text: `Hello!\n\nThis is a verified test email sent via Mymail's Inbound Webhook gateway to ${targetAddress}.\n\nRaw asset persisted to Cloudinary and delivered to your INBOX!`,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to process test email");
+      }
+
+      setTestInboundResult({
+        domainId: domain.id,
+        type: "success",
+        text: `Test email successfully delivered to ${targetAddress}! Check your inbox.`,
+      });
+      onRefreshData();
+    } catch (err: any) {
+      setTestInboundResult({
+        domainId: domain.id,
+        type: "error",
+        text: err?.message || "Failed to send test email",
+      });
+    } finally {
+      setTestingInboundDomainId(null);
+    }
+  };
   // Mailbox / Alias states
   const [selectedDomainForMailbox, setSelectedDomainForMailbox] = useState("");
   const [newLocalPart, setNewLocalPart] = useState("");
@@ -154,28 +206,29 @@ export function SettingsModal({ isOpen, onClose, onRefreshData }: SettingsModalP
     }
   };
 
-  const handleDeleteDomain = async (domainId: string, domainName: string) => {
-    if (
-      !confirm(
-        `Are you sure you want to remove ${domainName}? This will delete all mailboxes and aliases associated with this domain.`
-      )
-    ) {
-      return;
-    }
-    setIsDeletingDomainId(domainId);
+  const handleDeleteDomainClick = (domainId: string, domainName: string) => {
+    setDomainToDelete({ id: domainId, name: domainName });
+    setDomainDeleteError(null);
+  };
+
+  const handleConfirmDeleteDomain = async () => {
+    if (!domainToDelete) return;
+    setIsDeletingDomainId(domainToDelete.id);
+    setDomainDeleteError(null);
     try {
-      const res = await fetch(`/api/domains?id=${domainId}`, { method: "DELETE" });
+      const res = await fetch(`/api/domains?id=${domainToDelete.id}`, { method: "DELETE" });
       const data = await res.json();
       if (!res.ok || data.error) {
         throw new Error(data.error || "Failed to delete domain");
       }
-      if (expandedDnsDomainId === domainId) {
+      if (expandedDnsDomainId === domainToDelete.id) {
         setExpandedDnsDomainId(null);
       }
+      setDomainToDelete(null);
       await loadDomains();
       onRefreshData();
     } catch (err: any) {
-      alert(err?.message || "Failed to delete domain");
+      setDomainDeleteError(err?.message || "Failed to delete domain");
     } finally {
       setIsDeletingDomainId(null);
     }
@@ -238,6 +291,7 @@ export function SettingsModal({ isOpen, onClose, onRefreshData }: SettingsModalP
     e.preventDefault();
     if (!newLocalPart.trim() || !selectedDomainForMailbox) return;
     setIsAddingMailbox(true);
+    setMailboxError(null);
 
     try {
       const res = await fetch("/api/mailboxes", {
@@ -261,7 +315,7 @@ export function SettingsModal({ isOpen, onClose, onRefreshData }: SettingsModalP
       await loadDomains();
       onRefreshData();
     } catch (err: any) {
-      alert(err?.message || "Failed to create mailbox");
+      setMailboxError(err?.message || "Failed to create mailbox");
     } finally {
       setIsAddingMailbox(false);
     }
@@ -620,7 +674,7 @@ export function SettingsModal({ isOpen, onClose, onRefreshData }: SettingsModalP
 
                               <button
                                 type="button"
-                                onClick={() => handleDeleteDomain(dom.id, dom.name)}
+                                onClick={() => handleDeleteDomainClick(dom.id, dom.name)}
                                 disabled={isDeleting}
                                 title="Delete domain"
                                 className="p-1.5 text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
@@ -776,6 +830,128 @@ export function SettingsModal({ isOpen, onClose, onRefreshData }: SettingsModalP
                                   </tbody>
                                 </table>
                               </div>
+
+                              {/* Inbound Email Connection Guide for External Domains */}
+                              <div className="bg-[#FAF7F2] border border-[#E5DDD0] rounded-xl p-3.5 space-y-3">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                  <div className="flex items-center space-x-1.5">
+                                    <Code2 className="w-4 h-4 text-stone-700" />
+                                    <span className="text-xs font-bold font-mono text-stone-800">
+                                      Inbound Setup for External Domains
+                                    </span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSendTestInbound(dom)}
+                                    disabled={testingInboundDomainId === dom.id}
+                                    className="px-2.5 py-1 text-[11px] font-mono font-medium rounded-lg border border-[#E5DDD0] bg-white hover:bg-stone-50 text-stone-800 flex items-center space-x-1 shadow-2xs transition disabled:opacity-50 self-start sm:self-auto"
+                                  >
+                                    <Send className={cn("w-3 h-3 text-stone-600", testingInboundDomainId === dom.id && "animate-pulse")} />
+                                    <span>{testingInboundDomainId === dom.id ? "Sending Test..." : "Send Test Inbound Email"}</span>
+                                  </button>
+                                </div>
+
+                                {testInboundResult && testInboundResult.domainId === dom.id && (
+                                  <div
+                                    className={cn(
+                                      "p-2.5 rounded-lg text-xs font-mono flex items-center space-x-1.5",
+                                      testInboundResult.type === "success"
+                                        ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                                        : "bg-rose-50 text-rose-800 border border-rose-200"
+                                    )}
+                                  >
+                                    {testInboundResult.type === "success" ? (
+                                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                    ) : (
+                                      <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                                    )}
+                                    <span>{testInboundResult.text}</span>
+                                  </div>
+                                )}
+
+                                <p className="text-[11px] text-stone-600 leading-relaxed font-sans">
+                                  Because <strong>{dom.name}</strong> belongs to an external domain account, Cloudflare cannot directly select the platform worker from its dropdown. Choose one of these two setup options:
+                                </p>
+
+                                {/* Option 1: Cloudflare Email Worker */}
+                                <div className="space-y-2 bg-white border border-[#ECE3D6] rounded-lg p-3">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-[11px] font-bold font-mono text-stone-800">
+                                      Option 1 (Recommended): 5-line Cloudflare Email Worker
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        copyToClipboard(
+`export default {
+  async email(message, env, ctx) {
+    const res = await fetch("https://mymail-worker.runnly.workers.dev/api/inbound", {
+      method: "POST",
+      headers: {
+        "x-inbound-recipient": message.to,
+        "x-inbound-sender": message.from
+      },
+      body: message.raw
+    });
+    if (!res.ok) {
+      message.setReject(\`Inbound error: \${res.status}\`);
+    }
+  }
+};`,
+                                          `worker-code-${dom.id}`
+                                        )
+                                      }
+                                      className="px-2 py-0.5 text-[10px] font-mono rounded border border-[#E5DDD0] bg-[#FAF7F2] hover:bg-[#F3EBE0] text-stone-700 flex items-center space-x-1 transition"
+                                    >
+                                      {copiedKey === `worker-code-${dom.id}` ? (
+                                        <>
+                                          <Check className="w-3 h-3 text-emerald-600" />
+                                          <span className="text-emerald-700 font-semibold">Copied!</span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Copy className="w-3 h-3 text-stone-400" />
+                                          <span>Copy Worker Code</span>
+                                        </>
+                                      )}
+                                    </button>
+                                  </div>
+
+                                  <div className="text-[11px] text-stone-500 space-y-1 font-sans">
+                                    <p>1. In Cloudflare, go to <strong>Workers & Pages &rarr; Create Worker</strong>, paste the code above, and click <strong>Deploy</strong>.</p>
+                                    <p>2. Under <strong>{dom.name} &rarr; Email Routing &rarr; Routing Rules</strong>, set Catch-all Action to <strong>Send to Worker</strong> &rarr; select your worker.</p>
+                                  </div>
+                                </div>
+
+                                {/* Option 2: Standard Email Forwarding */}
+                                <div className="space-y-1.5 bg-white border border-[#ECE3D6] rounded-lg p-3 font-sans">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-[11px] font-bold font-mono text-stone-800">
+                                      Option 2: Email Forwarding (Any Registrar / DNS)
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => copyToClipboard("inbound@runnly.xyz", `fwd-${dom.id}`)}
+                                      className="px-2 py-0.5 text-[10px] font-mono rounded border border-[#E5DDD0] bg-[#FAF7F2] hover:bg-[#F3EBE0] text-stone-700 flex items-center space-x-1 transition"
+                                    >
+                                      {copiedKey === `fwd-${dom.id}` ? (
+                                        <>
+                                          <Check className="w-3 h-3 text-emerald-600" />
+                                          <span className="text-emerald-700 font-semibold">Copied!</span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Copy className="w-3 h-3 text-stone-400" />
+                                          <span>Copy inbound@runnly.xyz</span>
+                                        </>
+                                      )}
+                                    </button>
+                                  </div>
+                                  <p className="text-[11px] text-stone-500">
+                                    In your DNS/email provider, set a forwarding rule: <strong>*@{dom.name} &rarr; inbound@runnly.xyz</strong>. Mymail will automatically parse the original recipient and deliver it to your mailbox.
+                                  </p>
+                                </div>
+                              </div>
                             </div>
                           )}
                         </div>
@@ -790,7 +966,7 @@ export function SettingsModal({ isOpen, onClose, onRefreshData }: SettingsModalP
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-2">
                         <span className="font-bold font-mono text-sm text-stone-900">{platformDomain.name}</span>
-                        <span className="text-[10px] font-mono bg-teal-50 text-teal-800 border border-teal-200 font-semibold px-2 py-0.5 rounded-full">
+                        <span className="text-[10px] font-mono bg-rose-50 text-rose-800 border border-rose-200 font-semibold px-2 py-0.5 rounded-full">
                           Platform Host (Built-in)
                         </span>
                       </div>
@@ -800,7 +976,7 @@ export function SettingsModal({ isOpen, onClose, onRefreshData }: SettingsModalP
                     </div>
 
                     <p className="text-[11px] text-stone-500 font-sans">
-                      Default serverless domain provided with your Mymail installation. Pre-configured and verified.
+                      Default serverless domain provided with your Cupid Mail installation. Pre-configured and verified.
                     </p>
 
                     <div className="flex flex-wrap gap-1.5 pt-0.5">
@@ -823,6 +999,13 @@ export function SettingsModal({ isOpen, onClose, onRefreshData }: SettingsModalP
                       <Plus className="w-4 h-4 text-cupid-700" />
                       <span>Create Mailbox</span>
                     </h4>
+
+                    {mailboxError && (
+                      <div className="p-2.5 rounded-xl text-xs flex items-center space-x-1.5 font-mono bg-rose-50 text-rose-800 border border-rose-200">
+                        <AlertCircle className="w-4 h-4 shrink-0" />
+                        <span>{mailboxError}</span>
+                      </div>
+                    )}
 
                     <form onSubmit={handleCreateMailbox} className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                       <select
@@ -1408,6 +1591,63 @@ export function SettingsModal({ isOpen, onClose, onRefreshData }: SettingsModalP
             </div>
           )}
         </div>
+
+        {/* In-App Confirmation Modal for Deleting Domain */}
+        {domainToDelete && (
+          <div className="fixed inset-0 z-70 flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-xs animate-in fade-in duration-150">
+            <div className="bg-[#FFFDFB] border border-[#ECE3D6] rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 animate-in zoom-in-95 duration-150">
+              <div className="flex items-start space-x-3.5">
+                <div className="w-10 h-10 rounded-2xl bg-rose-100 text-cupid-900 flex items-center justify-center shrink-0 border border-rose-200">
+                  <Trash2 className="w-5 h-5 text-cupid-800" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold font-mono text-stone-900">
+                    Remove Domain?
+                  </h3>
+                  <p className="text-xs text-stone-600 mt-1 leading-relaxed font-sans">
+                    Are you sure you want to remove <strong className="text-cupid-900 font-mono font-bold">{domainToDelete.name}</strong>? This will permanently delete all associated mailboxes, aliases, and incoming routing.
+                  </p>
+                </div>
+              </div>
+
+              {domainDeleteError && (
+                <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800 flex items-center space-x-2 font-mono">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{domainDeleteError}</span>
+                </div>
+              )}
+
+              <div className="flex items-center justify-end space-x-2 pt-2 border-t border-[#ECE3D6]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDomainToDelete(null);
+                    setDomainDeleteError(null);
+                  }}
+                  disabled={isDeletingDomainId !== null}
+                  className="px-4 py-2 rounded-xl text-xs font-mono font-medium text-stone-600 hover:text-stone-900 hover:bg-[#F3EBE0] transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDeleteDomain}
+                  disabled={isDeletingDomainId !== null}
+                  className="px-4 py-2 rounded-xl text-xs font-mono font-bold bg-gradient-to-r from-cupid-900 to-cupid-800 hover:from-cupid-950 hover:to-cupid-900 text-white shadow-sm transition disabled:opacity-50 flex items-center space-x-1.5"
+                >
+                  {isDeletingDomainId !== null ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Removing...</span>
+                    </>
+                  ) : (
+                    <span>Delete Domain</span>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

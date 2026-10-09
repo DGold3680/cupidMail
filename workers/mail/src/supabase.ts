@@ -51,6 +51,65 @@ export async function validateRecipient(
 }
 
 /**
+ * Resolves one or more candidate recipient addresses against active mailboxes and aliases.
+ * Returns an array of matching RecipientLookup objects with unique mailboxIds.
+ */
+export async function resolveCandidateRecipients(
+  supabase: SupabaseClient,
+  candidateAddresses: string[]
+): Promise<RecipientLookup[]> {
+  const matches: RecipientLookup[] = [];
+  const seenMailboxIds = new Set<string>();
+
+  for (const rawAddress of candidateAddresses) {
+    if (!rawAddress || typeof rawAddress !== "string") continue;
+    const normalized = rawAddress.toLowerCase().trim();
+    if (!normalized.includes("@")) continue;
+
+    const lookup = await validateRecipient(supabase, normalized);
+    if (lookup && !seenMailboxIds.has(lookup.mailboxId)) {
+      seenMailboxIds.add(lookup.mailboxId);
+      matches.push(lookup);
+    }
+  }
+
+  return matches;
+}
+
+/**
+ * Finds a platform admin mailbox (e.g. admin@runnly.xyz or first active mailbox)
+ * Used as fallback for critical verification emails (e.g. Cloudflare Email Routing verify)
+ */
+export async function findAdminMailbox(
+  supabase: SupabaseClient
+): Promise<RecipientLookup | null> {
+  const { data: adminMb } = await supabase
+    .from("mailboxes")
+    .select("id, address, status")
+    .like("address", "admin@%")
+    .eq("status", "ACTIVE")
+    .limit(1)
+    .single();
+
+  if (adminMb) {
+    return { mailboxId: adminMb.id, address: adminMb.address };
+  }
+
+  const { data: firstMb } = await supabase
+    .from("mailboxes")
+    .select("id, address, status")
+    .eq("status", "ACTIVE")
+    .limit(1)
+    .single();
+
+  if (firstMb) {
+    return { mailboxId: firstMb.id, address: firstMb.address };
+  }
+
+  return null;
+}
+
+/**
  * Creates or finds an existing thread based on normalized subject or RFC In-Reply-To
  */
 export async function findOrCreateThread(
