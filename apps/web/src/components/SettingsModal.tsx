@@ -425,12 +425,12 @@ export function SettingsModal({ isOpen, onClose, onRefreshData }: SettingsModalP
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-stone-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4 select-none">
-      <div className="bg-white rounded-3xl shadow-cupid-lg border border-[#ECE3D6] w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+    <div className="fixed inset-0 bg-stone-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-0 sm:p-4 select-none">
+      <div className="bg-white sm:rounded-3xl shadow-cupid-lg border-0 sm:border border-[#ECE3D6] w-full h-full sm:h-auto max-w-4xl sm:max-h-[90vh] flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-[#ECE3D6] flex items-center justify-between bg-[#FAF7F2]">
-          <div className="flex items-center space-x-3">
-            <img src="/assets/Logo.png" alt="Cupid" className="w-8 h-8 object-contain" />
+        <div className="px-4 py-3 sm:px-6 sm:py-4 border-b border-[#ECE3D6] flex items-center justify-between bg-[#FAF7F2] shrink-0">
+          <div className="flex items-center space-x-2.5 sm:space-x-3">
+            <img src="/assets/Logo.png" alt="Cupid" className="w-7 h-7 sm:w-8 sm:h-8 object-contain" />
             <div>
               <h2 className="text-base font-bold font-mono text-stone-900">Domain Settings</h2>
               <p className="text-xs text-stone-500">Configure domains, email routing, storage, and workflow</p>
@@ -445,11 +445,11 @@ export function SettingsModal({ isOpen, onClose, onRefreshData }: SettingsModalP
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex border-b border-[#ECE3D6] px-6 bg-white text-xs font-mono font-semibold overflow-x-auto">
+        <div className="flex border-b border-[#ECE3D6] px-3 sm:px-6 bg-white text-xs font-mono font-semibold overflow-x-auto no-scrollbar shrink-0">
           <button
             onClick={() => setActiveTab("domains")}
             className={cn(
-              "py-3.5 px-4 border-b-2 flex items-center space-x-2 transition whitespace-nowrap",
+              "py-3.5 px-3 sm:px-4 border-b-2 flex items-center space-x-2 transition whitespace-nowrap",
               activeTab === "domains"
                 ? "border-cupid-700 text-cupid-900"
                 : "border-transparent text-stone-400 hover:text-stone-700"
@@ -462,7 +462,7 @@ export function SettingsModal({ isOpen, onClose, onRefreshData }: SettingsModalP
           <button
             onClick={() => setActiveTab("providers")}
             className={cn(
-              "py-3.5 px-4 border-b-2 flex items-center space-x-2 transition whitespace-nowrap",
+              "py-3.5 px-3 sm:px-4 border-b-2 flex items-center space-x-2 transition whitespace-nowrap",
               activeTab === "providers"
                 ? "border-cupid-700 text-cupid-900"
                 : "border-transparent text-stone-400 hover:text-stone-700"
@@ -475,7 +475,7 @@ export function SettingsModal({ isOpen, onClose, onRefreshData }: SettingsModalP
           <button
             onClick={() => setActiveTab("storage")}
             className={cn(
-              "py-3.5 px-4 border-b-2 flex items-center space-x-2 transition whitespace-nowrap",
+              "py-3.5 px-3 sm:px-4 border-b-2 flex items-center space-x-2 transition whitespace-nowrap",
               activeTab === "storage"
                 ? "border-cupid-700 text-cupid-900"
                 : "border-transparent text-stone-400 hover:text-stone-700"
@@ -488,7 +488,7 @@ export function SettingsModal({ isOpen, onClose, onRefreshData }: SettingsModalP
           <button
             onClick={() => setActiveTab("workflow")}
             className={cn(
-              "py-3.5 px-4 border-b-2 flex items-center space-x-2 transition whitespace-nowrap",
+              "py-3.5 px-3 sm:px-4 border-b-2 flex items-center space-x-2 transition whitespace-nowrap",
               activeTab === "workflow"
                 ? "border-cupid-700 text-cupid-900"
                 : "border-transparent text-stone-400 hover:text-stone-700"
@@ -500,7 +500,7 @@ export function SettingsModal({ isOpen, onClose, onRefreshData }: SettingsModalP
         </div>
 
         {/* Modal Body */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-[#FAF7F2]/40">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 sm:space-y-6 bg-[#FAF7F2]/40 pb-safe">
           {/* TAB 1: DOMAINS & MAILBOXES */}
           {activeTab === "domains" && (() => {
             const platformDomain = domains.find((d) => d.name === baseDomainName);

@@ -2,11 +2,13 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { Plus } from "lucide-react";
 import { Sidebar } from "@/components/Sidebar";
 import { MessageList, MessageListItem } from "@/components/MessageList";
 import { MessageDetail, FullMessage } from "@/components/MessageDetail";
 import { Composer, ComposeInitialState } from "@/components/Composer";
 import { SettingsModal } from "@/components/SettingsModal";
+import { cn } from "@/lib/utils";
 
 export default function MailDashboard() {
   const router = useRouter();
@@ -17,6 +19,9 @@ export default function MailDashboard() {
   const [currentMailboxId, setCurrentMailboxId] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [filterTab, setFilterTab] = useState<"ALL" | "UNREAD" | "STARRED" | "ATTACHMENTS">("ALL");
+
+  // Mobile drawer state
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
 
   // Data state
   const [mailboxes, setMailboxes] = useState<any[]>([]);
@@ -68,8 +73,9 @@ export default function MailDashboard() {
         setMessages(data.items);
         setUnreadCount(data.unreadCount || 0);
 
-        // Auto-select first message if none selected or current is not in list
-        if (data.items.length > 0 && !selectedMessageId) {
+        // Auto-select first message only on desktop screen (width >= 768px)
+        const isDesktop = typeof window !== "undefined" && window.innerWidth >= 768;
+        if (isDesktop && data.items.length > 0 && !selectedMessageId) {
           setSelectedMessageId(data.items[0].id);
         } else if (data.items.length === 0) {
           setSelectedMessageId(null);
@@ -310,6 +316,16 @@ export default function MailDashboard() {
     }
   };
 
+  const folderLabels: Record<string, string> = {
+    INBOX: "Inbox",
+    STARRED: "Starred",
+    SENT: "Sent",
+    DRAFTS: "Drafts",
+    ARCHIVE: "Archive",
+    TRASH: "Trash",
+  };
+  const currentFolderLabel = folderLabels[currentFolder] || currentFolder;
+
   if (isAuthChecking) {
     return (
       <div className="h-screen w-screen bg-[#FAF7F2] flex flex-col items-center justify-center space-y-4">
@@ -329,12 +345,14 @@ export default function MailDashboard() {
 
   return (
     <div className="flex h-screen bg-[#FAF7F2] font-sans overflow-hidden selection:bg-rose-200 selection:text-rose-950">
-      {/* 1. Cupid Mail Sidebar */}
+      {/* 1. Cupid Mail Sidebar (desktop sidebar + mobile drawer) */}
       <Sidebar
         currentFolder={currentFolder}
         currentMailboxId={currentMailboxId}
         mailboxes={mailboxes}
         unreadCount={unreadCount}
+        isMobileOpen={isMobileSidebarOpen}
+        onCloseMobile={() => setIsMobileSidebarOpen(false)}
         onSelectFolder={(f) => {
           setCurrentFolder(f);
           setSelectedMessageId(null);
@@ -350,36 +368,74 @@ export default function MailDashboard() {
         onOpenSettings={() => setIsSettingsOpen(true)}
       />
 
-      {/* 2. Message List Stream */}
-      <MessageList
-        messages={messages}
-        selectedMessageId={selectedMessageId}
-        isLoading={isLoadingList}
-        searchTerm={searchTerm}
-        filterTab={filterTab}
-        onSearchChange={setSearchTerm}
-        onFilterChange={setFilterTab}
-        onSelectMessage={setSelectedMessageId}
-        onToggleStar={handleToggleStar}
-        onToggleRead={handleToggleRead}
-        onArchive={handleArchive}
-        onDelete={handleDelete}
-        onRefresh={loadMessages}
-      />
+      {/* 2. Message List Stream (on mobile, hidden when a message is selected) */}
+      <div
+        className={cn(
+          "h-full",
+          selectedMessageId ? "hidden md:flex" : "flex w-full md:w-auto"
+        )}
+      >
+        <MessageList
+          messages={messages}
+          selectedMessageId={selectedMessageId}
+          isLoading={isLoadingList}
+          searchTerm={searchTerm}
+          filterTab={filterTab}
+          currentFolderLabel={currentFolderLabel}
+          onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
+          onOpenComposer={() => {
+            setComposerState(undefined);
+            setIsComposerOpen(true);
+          }}
+          onSearchChange={setSearchTerm}
+          onFilterChange={setFilterTab}
+          onSelectMessage={setSelectedMessageId}
+          onToggleStar={handleToggleStar}
+          onToggleRead={handleToggleRead}
+          onArchive={handleArchive}
+          onDelete={handleDelete}
+          onRefresh={loadMessages}
+        />
+      </div>
 
-      {/* 3. Message Viewer / Conversation Detail */}
-      <MessageDetail
-        message={selectedMessage}
-        threadHistory={threadHistory}
-        isLoading={isLoadingDetail}
-        onReply={handleReply}
-        onToggleStar={(id) => handleToggleStar(id)}
-        onArchive={(id) => handleArchive(id)}
-        onDelete={(id) => handleDelete(id)}
-        onSendQuickReply={handleQuickReply}
-      />
+      {/* 3. Message Viewer / Conversation Detail (on mobile, hidden when no message is selected) */}
+      <div
+        className={cn(
+          "h-full flex-1",
+          !selectedMessageId ? "hidden md:flex" : "flex w-full"
+        )}
+      >
+        <MessageDetail
+          message={selectedMessage}
+          threadHistory={threadHistory}
+          isLoading={isLoadingDetail}
+          onBack={() => {
+            setSelectedMessageId(null);
+            setSelectedMessage(null);
+          }}
+          onReply={handleReply}
+          onToggleStar={(id) => handleToggleStar(id)}
+          onArchive={(id) => handleArchive(id)}
+          onDelete={(id) => handleDelete(id)}
+          onSendQuickReply={handleQuickReply}
+        />
+      </div>
 
-      {/* 4. Floating Composer Modal */}
+      {/* Mobile Floating Action Button (FAB) for New Letter when in Message List view */}
+      {!selectedMessageId && (
+        <button
+          onClick={() => {
+            setComposerState(undefined);
+            setIsComposerOpen(true);
+          }}
+          className="md:hidden fixed right-5 bottom-6 z-40 w-14 h-14 bg-gradient-to-tr from-cupid-950 via-cupid-900 to-cupid-800 text-white rounded-full shadow-lg shadow-cupid-900/35 flex items-center justify-center transition-transform active:scale-95 border border-rose-900/30"
+          aria-label="New Letter"
+        >
+          <Plus className="w-6 h-6 stroke-[2.5]" />
+        </button>
+      )}
+
+      {/* 4. Composer Modal (Floating desktop / Full-screen mobile) */}
       <Composer
         isOpen={isComposerOpen}
         mailboxes={mailboxes}
@@ -402,4 +458,3 @@ export default function MailDashboard() {
     </div>
   );
 }
-

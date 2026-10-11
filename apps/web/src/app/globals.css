@@ -8,15 +8,32 @@
     --primary-foreground: 255 255 255;
   }
 
+  html,
   body {
     @apply bg-[#FAF7F2] text-[#2A221F] antialiased selection:bg-rose-200 selection:text-rose-950;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
   }
+}
+
+/* Safe area padding utilities for iOS / notch devices */
+.safe-paddings {
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.pb-safe {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.5rem);
+}
+
+.pt-safe {
+  padding-top: calc(env(safe-area-inset-top, 0px) + 0.5rem);
 }
 
 /* Custom crisp scrollbars */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 
 ::-webkit-scrollbar-track {
@@ -32,16 +49,29 @@
   background: #D2C6B6;
 }
 
-/* Email sanitized content container */
+/* Hide scrollbar utility */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Email sanitized content container (responsive) */
 .email-content-frame {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   line-height: 1.6;
   color: #2D2321;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
 }
 
 .email-content-frame a {
   color: #9F1239;
   text-decoration: underline;
+  word-break: break-all;
 }
 
 .email-content-frame blockquote {
@@ -53,8 +83,21 @@
 }
 
 .email-content-frame img {
-  max-width: 100%;
-  height: auto;
+  max-width: 100% !important;
+  height: auto !important;
   border-radius: 8px;
 }
 
+.email-content-frame table {
+  max-width: 100% !important;
+  display: block;
+  overflow-x: auto;
+}
+
+.email-content-frame pre,
+.email-content-frame code {
+  max-width: 100%;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}

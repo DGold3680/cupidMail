@@ -10,6 +10,8 @@ import {
   CheckSquare,
   Square,
   Heart,
+  Menu,
+  Plus,
 } from "lucide-react";
 import { cn, formatEmailDate, isRunnlySystemSender } from "@/lib/utils";
 
@@ -49,6 +51,9 @@ interface MessageListProps {
   onArchive: (id: string, e: React.MouseEvent) => void;
   onDelete: (id: string, e: React.MouseEvent) => void;
   onRefresh: () => void;
+  onOpenMobileSidebar?: () => void;
+  onOpenComposer?: () => void;
+  currentFolderLabel?: string;
 }
 
 export function MessageList({
@@ -65,6 +70,9 @@ export function MessageList({
   onArchive,
   onDelete,
   onRefresh,
+  onOpenMobileSidebar,
+  onOpenComposer,
+  currentFolderLabel = "Inbox",
 }: MessageListProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -88,7 +96,45 @@ export function MessageList({
   };
 
   return (
-    <div className="w-[370px] lg:w-[410px] bg-[#FAF7F2] border-r border-[#ECE3D6] flex flex-col h-screen shrink-0 select-none">
+    <div className="w-full md:w-[370px] lg:w-[410px] bg-[#FAF7F2] md:border-r border-[#ECE3D6] flex flex-col h-screen shrink-0 select-none">
+      {/* Mobile Top Navigation Bar (hidden on md+) */}
+      <div className="md:hidden h-14 border-b border-[#ECE3D6] px-3.5 flex items-center justify-between bg-white/80 backdrop-blur-xs shrink-0">
+        <div className="flex items-center space-x-2.5">
+          <button
+            onClick={onOpenMobileSidebar}
+            className="p-2 -ml-1 text-stone-600 hover:text-stone-900 hover:bg-[#F3EBE0] rounded-xl transition"
+            aria-label="Open sidebar menu"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+          <div className="flex items-center space-x-2">
+            <img src="/assets/Logo.png" alt="Cupid Mail" className="w-6 h-6 object-contain" />
+            <span className="font-mono font-bold text-sm text-stone-900 tracking-tight">
+              {currentFolderLabel}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center space-x-1">
+          <button
+            onClick={onRefresh}
+            className="p-2 text-stone-500 hover:text-stone-800 rounded-xl transition"
+            title="Refresh inbox"
+          >
+            <RotateCw className={cn("w-4 h-4", isLoading && "animate-spin text-cupid-700")} />
+          </button>
+          {onOpenComposer && (
+            <button
+              onClick={onOpenComposer}
+              className="p-2 bg-gradient-to-r from-cupid-900 to-cupid-800 text-white hover:from-cupid-950 hover:to-cupid-900 rounded-xl shadow-xs transition"
+              title="New Letter"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Top Search Bar */}
       <div className="p-3 border-b border-[#ECE3D6] bg-white/70 backdrop-blur-xs space-y-2.5">
         <div className="relative">
@@ -103,7 +149,7 @@ export function MessageList({
         </div>
 
         {/* Filter Pills */}
-        <div className="flex items-center space-x-1.5 overflow-x-auto pb-0.5 text-xs">
+        <div className="flex items-center space-x-1.5 overflow-x-auto pb-0.5 text-xs no-scrollbar">
           {(["ALL", "UNREAD", "STARRED", "ATTACHMENTS"] as const).map((tab) => (
             <button
               key={tab}
@@ -125,7 +171,7 @@ export function MessageList({
       </div>
 
       {/* Action Row */}
-      <div className="h-9 px-3.5 border-b border-[#ECE3D6] flex items-center justify-between text-[11px] font-mono text-stone-500 bg-[#F6F0E6]/80">
+      <div className="h-9 px-3.5 border-b border-[#ECE3D6] flex items-center justify-between text-[11px] font-mono text-stone-500 bg-[#F6F0E6]/80 shrink-0">
         <div className="flex items-center space-x-2">
           <button
             onClick={toggleSelectAll}
@@ -141,7 +187,7 @@ export function MessageList({
           <span>{filteredMessages.length} conversation{filteredMessages.length === 1 ? "" : "s"}</span>
         </div>
 
-        <div className="flex items-center space-x-1">
+        <div className="hidden md:flex items-center space-x-1">
           <button
             onClick={onRefresh}
             className="p-1 hover:bg-rose-50 rounded-lg hover:text-cupid-800 transition"
@@ -189,7 +235,7 @@ export function MessageList({
                 className={cn(
                   "p-3.5 cursor-pointer transition relative group",
                   isSelected
-                    ? "bg-rose-50/90 border-l-4 border-l-cupid-800 shadow-xs"
+                    ? "bg-rose-50/90 md:border-l-4 md:border-l-cupid-800 shadow-xs"
                     : !msg.isRead
                     ? "bg-[#FFFDFB] hover:bg-[#F7F1E8]"
                     : "bg-[#FAF7F2]/80 hover:bg-[#F3EBE0] text-stone-600"
@@ -286,5 +332,3 @@ export function MessageList({
     </div>
   );
 }
-
-

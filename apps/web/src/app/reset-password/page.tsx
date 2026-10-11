@@ -62,7 +62,7 @@ function ResetPasswordForm() {
   };
 
   return (
-    <div className="w-full max-w-md bg-white border border-[#ECE3D6] rounded-3xl p-8 shadow-cupid-lg space-y-6 relative overflow-hidden">
+    <div className="w-full max-w-md bg-white border border-[#ECE3D6] rounded-3xl p-5 sm:p-8 shadow-cupid-lg space-y-6 relative overflow-hidden">
       {/* Decorative background glow */}
       <div className="absolute -top-16 -right-16 w-44 h-44 bg-rose-100/60 rounded-full blur-2xl pointer-events-none" />
       <div className="absolute -bottom-16 -left-16 w-44 h-44 bg-rose-100/40 rounded-full blur-2xl pointer-events-none" />
@@ -123,13 +123,13 @@ function ResetPasswordForm() {
               New Password (min 6 characters)
             </label>
             <div className="relative">
-              <Lock className="w-4 h-4 text-stone-400 absolute left-3.5 top-3" />
+              <Lock className="w-4 h-4 text-stone-400 absolute left-3.5 top-3.5 sm:top-3" />
               <input
                 type="password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 placeholder="••••••••••••"
-                className="w-full pl-10 pr-3.5 py-2.5 bg-[#FAF7F2] border border-[#E5DDD0] rounded-xl text-sm focus:outline-none focus:border-cupid-600 focus:bg-white transition text-stone-900 placeholder:text-stone-400 font-mono"
+                className="w-full pl-10 pr-3.5 py-2.5 bg-[#FAF7F2] border border-[#E5DDD0] rounded-xl text-base sm:text-sm focus:outline-none focus:border-cupid-600 focus:bg-white transition text-stone-900 placeholder:text-stone-400 font-mono"
                 required
               />
             </div>
@@ -140,13 +140,13 @@ function ResetPasswordForm() {
               Confirm New Password
             </label>
             <div className="relative">
-              <Lock className="w-4 h-4 text-stone-400 absolute left-3.5 top-3" />
+              <Lock className="w-4 h-4 text-stone-400 absolute left-3.5 top-3.5 sm:top-3" />
               <input
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="••••••••••••"
-                className="w-full pl-10 pr-3.5 py-2.5 bg-[#FAF7F2] border border-[#E5DDD0] rounded-xl text-sm focus:outline-none focus:border-cupid-600 focus:bg-white transition text-stone-900 placeholder:text-stone-400 font-mono"
+                className="w-full pl-10 pr-3.5 py-2.5 bg-[#FAF7F2] border border-[#E5DDD0] rounded-xl text-base sm:text-sm focus:outline-none focus:border-cupid-600 focus:bg-white transition text-stone-900 placeholder:text-stone-400 font-mono"
                 required
               />
             </div>
@@ -184,7 +184,7 @@ function ResetPasswordForm() {
 
 export default function ResetPasswordPage() {
   return (
-    <div className="min-h-screen bg-[#FAF7F2] flex items-center justify-center p-4 selection:bg-rose-200 selection:text-rose-950 font-sans">
+    <div className="min-h-screen bg-[#FAF7F2] flex items-center justify-center p-3 sm:p-4 selection:bg-rose-200 selection:text-rose-950 font-sans pb-safe">
       <Suspense fallback={<div className="font-mono text-xs text-stone-400">Loading password reset...</div>}>
         <ResetPasswordForm />
       </Suspense>

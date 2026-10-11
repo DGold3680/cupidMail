@@ -17,6 +17,7 @@ import {
   Mail,
   Heart,
   Send,
+  ArrowLeft,
 } from "lucide-react";
 import { cn, formatFullDate, getInitials, formatBytes, isRunnlySystemSender } from "@/lib/utils";
 
@@ -69,6 +70,7 @@ interface MessageDetailProps {
   onArchive: (id: string) => void;
   onDelete: (id: string) => void;
   onSendQuickReply: (text: string) => Promise<void>;
+  onBack?: () => void;
 }
 
 export function MessageDetail({
@@ -80,6 +82,7 @@ export function MessageDetail({
   onArchive,
   onDelete,
   onSendQuickReply,
+  onBack,
 }: MessageDetailProps) {
   const [allowImages, setAllowImages] = useState(false);
   const [quickReplyText, setQuickReplyText] = useState("");
@@ -89,7 +92,7 @@ export function MessageDetail({
 
   if (isLoading) {
     return (
-      <div className="flex-1 bg-[#FAF7F2] flex items-center justify-center">
+      <div className="flex-1 bg-[#FAF7F2] flex items-center justify-center p-4">
         <div className="space-y-3 text-center">
           <div className="w-8 h-8 border-2 border-cupid-800 border-t-transparent rounded-full animate-spin mx-auto" />
           <p className="text-xs font-mono text-stone-500">Opening conversation...</p>
@@ -100,9 +103,9 @@ export function MessageDetail({
 
   if (!message) {
     return (
-      <div className="flex-1 bg-[#FAF7F2] flex flex-col items-center justify-center p-8 text-center select-none">
-        <div className="max-w-md w-full bg-white/80 border border-[#ECE3D6] rounded-3xl p-8 shadow-sm flex flex-col items-center space-y-4">
-          <div className="w-24 h-24 rounded-2xl bg-rose-50 border border-rose-100 flex items-center justify-center overflow-hidden p-3 shadow-inner">
+      <div className="flex-1 bg-[#FAF7F2] flex flex-col items-center justify-center p-6 text-center select-none">
+        <div className="max-w-md w-full bg-white/80 border border-[#ECE3D6] rounded-3xl p-6 sm:p-8 shadow-xs flex flex-col items-center space-y-4">
+          <div className="w-20 sm:w-24 h-20 sm:h-24 rounded-2xl bg-rose-50 border border-rose-100 flex items-center justify-center overflow-hidden p-3 shadow-inner">
             <img
               src="/assets/Img.jpg"
               alt="Cupid Silhouette"
@@ -161,32 +164,43 @@ export function MessageDetail({
   return (
     <div className="flex-1 bg-[#FAF7F2] flex flex-col h-screen overflow-hidden">
       {/* Top Action Toolbar */}
-      <div className="h-14 border-b border-[#ECE3D6] px-6 flex items-center justify-between bg-white/80 backdrop-blur-xs shrink-0">
-        <div className="flex items-center space-x-1.5">
+      <div className="h-14 border-b border-[#ECE3D6] px-3 sm:px-6 flex items-center justify-between bg-white/80 backdrop-blur-xs shrink-0">
+        <div className="flex items-center space-x-1 sm:space-x-1.5">
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="md:hidden flex items-center space-x-1 px-2.5 py-1.5 text-xs font-mono font-medium text-stone-700 bg-[#F5EFE6] hover:bg-[#EFE8DE] border border-[#E5DDD0]/70 rounded-xl transition mr-1"
+              aria-label="Back to messages"
+            >
+              <ArrowLeft className="w-4 h-4 text-stone-600" />
+              <span className="text-[11px]">Inbox</span>
+            </button>
+          )}
+
           <button
             onClick={() => onReply("reply")}
-            className="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-mono font-medium text-stone-700 bg-[#F5EFE6] hover:bg-rose-50 hover:text-cupid-900 border border-[#E5DDD0]/70 rounded-xl transition"
+            className="flex items-center space-x-1 sm:space-x-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-mono font-medium text-stone-700 bg-[#F5EFE6] hover:bg-rose-50 hover:text-cupid-900 border border-[#E5DDD0]/70 rounded-xl transition"
           >
             <Reply className="w-3.5 h-3.5" />
-            <span>Reply</span>
+            <span className="hidden sm:inline">Reply</span>
           </button>
           <button
             onClick={() => onReply("replyAll")}
-            className="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-mono font-medium text-stone-700 bg-[#F5EFE6] hover:bg-rose-50 hover:text-cupid-900 border border-[#E5DDD0]/70 rounded-xl transition"
+            className="flex items-center space-x-1 sm:space-x-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-mono font-medium text-stone-700 bg-[#F5EFE6] hover:bg-rose-50 hover:text-cupid-900 border border-[#E5DDD0]/70 rounded-xl transition"
           >
             <ReplyAll className="w-3.5 h-3.5" />
-            <span>Reply All</span>
+            <span className="hidden sm:inline">Reply All</span>
           </button>
           <button
             onClick={() => onReply("forward")}
-            className="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-mono font-medium text-stone-700 bg-[#F5EFE6] hover:bg-rose-50 hover:text-cupid-900 border border-[#E5DDD0]/70 rounded-xl transition"
+            className="flex items-center space-x-1 sm:space-x-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-mono font-medium text-stone-700 bg-[#F5EFE6] hover:bg-rose-50 hover:text-cupid-900 border border-[#E5DDD0]/70 rounded-xl transition"
           >
             <Forward className="w-3.5 h-3.5" />
-            <span>Forward</span>
+            <span className="hidden sm:inline">Forward</span>
           </button>
         </div>
 
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-1 sm:space-x-2">
           <button
             onClick={() => onArchive(message.id)}
             className="p-2 text-stone-500 hover:text-cupid-900 hover:bg-rose-50 rounded-xl transition"
@@ -205,13 +219,13 @@ export function MessageDetail({
       </div>
 
       {/* Main Conversation Scrollable Area */}
-      <div className="flex-1 overflow-y-auto p-6 lg:p-8 space-y-6">
+      <div className="flex-1 overflow-y-auto p-3.5 sm:p-6 lg:p-8 space-y-4 sm:space-y-6">
         {/* Subject Header */}
         <div className="border-b border-[#ECE3D6] pb-4">
-          <h1 className="text-xl font-bold font-mono text-stone-900 tracking-tight leading-snug">
+          <h1 className="text-lg sm:text-xl font-bold font-mono text-stone-900 tracking-tight leading-snug break-words">
             {message.subject || "(no subject)"}
           </h1>
-          <div className="flex items-center space-x-2 mt-2 text-xs text-stone-500 font-mono">
+          <div className="flex flex-wrap items-center gap-2 mt-2 text-xs text-stone-500 font-mono">
             <span className="bg-rose-50 text-cupid-900 px-2 py-0.5 rounded-full border border-rose-200">
               {message.mailboxMessages?.[0]?.mailbox.address || "Mailbox"}
             </span>
@@ -235,9 +249,9 @@ export function MessageDetail({
                 >
                   <div
                     onClick={() => toggleExpand(hist.id)}
-                    className="p-3.5 flex items-center justify-between cursor-pointer hover:bg-rose-50/50 transition text-xs"
+                    className="p-3 sm:p-3.5 flex items-center justify-between cursor-pointer hover:bg-rose-50/50 transition text-xs"
                   >
-                    <div className="flex items-center space-x-2.5 truncate">
+                    <div className="flex items-center space-x-2.5 truncate min-w-0">
                       {isRunnlySystemSender(hist.fromName, hist.fromAddress) ? (
                         <div className="w-6 h-6 rounded-lg bg-white border border-[#E5DDD0] flex items-center justify-center p-0.5 shrink-0 overflow-hidden shadow-2xs">
                           <img
@@ -251,16 +265,16 @@ export function MessageDetail({
                           {getInitials(hist.fromName, hist.fromAddress)}
                         </div>
                       )}
-                      <span className="font-semibold text-stone-800">
+                      <span className="font-semibold text-stone-800 truncate">
                         {hist.fromName || hist.fromAddress}
                       </span>
-                      <span className="text-stone-400 truncate max-w-md">
+                      <span className="text-stone-400 truncate hidden sm:inline max-w-md">
                         {hist.textBody?.slice(0, 80) || "No preview"}
                       </span>
                     </div>
 
-                    <div className="flex items-center space-x-2 text-stone-400 font-mono text-[10px]">
-                      <span>{formatFullDate(hist.sentAt || hist.receivedAt)}</span>
+                    <div className="flex items-center space-x-2 text-stone-400 font-mono text-[10px] shrink-0 ml-2">
+                      <span className="hidden xs:inline">{formatFullDate(hist.sentAt || hist.receivedAt)}</span>
                       {isExpanded ? (
                         <ChevronUp className="w-4 h-4" />
                       ) : (
@@ -270,14 +284,14 @@ export function MessageDetail({
                   </div>
 
                   {isExpanded && (
-                    <div className="p-5 border-t border-[#ECE3D6] bg-white">
+                    <div className="p-4 sm:p-5 border-t border-[#ECE3D6] bg-white">
                       {hist.htmlBody ? (
                         <div
                           className="email-content-frame text-sm"
                           dangerouslySetInnerHTML={{ __html: hist.htmlBody }}
                         />
                       ) : (
-                        <pre className="text-sm font-sans whitespace-pre-wrap text-stone-800">
+                        <pre className="text-sm font-sans whitespace-pre-wrap text-stone-800 break-words">
                           {hist.textBody}
                         </pre>
                       )}
@@ -290,10 +304,10 @@ export function MessageDetail({
         )}
 
         {/* Active / Latest Message Card */}
-        <div className="bg-white border border-[#ECE3D6] rounded-3xl p-6 shadow-sm shadow-cupid-900/5 space-y-6">
+        <div className="bg-white border border-[#ECE3D6] rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-sm shadow-cupid-900/5 space-y-5 sm:space-y-6">
           {/* Sender & Recipient Bar */}
-          <div className="flex items-start justify-between">
-            <div className="flex items-start space-x-3.5">
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+            <div className="flex items-start space-x-3 min-w-0">
               {isRunnlySystemSender(message.fromName, message.fromAddress) ? (
                 <div className="w-10 h-10 rounded-2xl bg-white border border-[#E5DDD0] shadow-sm shadow-cupid-900/10 flex items-center justify-center p-1 overflow-hidden shrink-0">
                   <img
@@ -307,8 +321,8 @@ export function MessageDetail({
                   {getInitials(message.fromName, message.fromAddress)}
                 </div>
               )}
-              <div>
-                <div className="flex items-center space-x-2">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-1.5">
                   <span className="font-bold text-stone-900 text-sm">
                     {message.fromName || message.fromAddress}
                   </span>
@@ -317,11 +331,11 @@ export function MessageDetail({
                       System
                     </span>
                   )}
-                  <span className="text-xs font-mono text-stone-400">
+                  <span className="text-xs font-mono text-stone-400 break-all">
                     &lt;{message.fromAddress}&gt;
                   </span>
                 </div>
-                <div className="text-xs text-stone-500 mt-0.5">
+                <div className="text-xs text-stone-500 mt-1 break-words">
                   <span className="font-mono text-stone-400">To: </span>
                   {message.recipients.map((r, i) => (
                     <span key={r.id}>
@@ -334,21 +348,21 @@ export function MessageDetail({
               </div>
             </div>
 
-            <div className="text-right text-[11px] font-mono text-stone-400">
+            <div className="text-left sm:text-right text-[11px] font-mono text-stone-400 shrink-0">
               <div>{formatFullDate(message.sentAt || message.receivedAt)}</div>
             </div>
           </div>
 
           {/* Privacy Banner if remote images exist */}
           {hasRemoteImages && !allowImages && (
-            <div className="bg-rose-50/90 border border-rose-200/80 rounded-2xl p-3 flex items-center justify-between text-xs text-cupid-950">
+            <div className="bg-rose-50/90 border border-rose-200/80 rounded-2xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-cupid-950">
               <div className="flex items-center space-x-2">
                 <ShieldAlert className="w-4 h-4 text-cupid-700 shrink-0" />
                 <span>Remote images were blocked to safeguard your privacy and location.</span>
               </div>
               <button
                 onClick={() => setAllowImages(true)}
-                className="bg-white hover:bg-rose-100 border border-rose-300 text-cupid-900 px-3 py-1 rounded-xl font-mono text-[11px] font-semibold transition"
+                className="bg-white hover:bg-rose-100 border border-rose-300 text-cupid-900 px-3 py-1 rounded-xl font-mono text-[11px] font-semibold transition self-start sm:self-auto shrink-0"
               >
                 Load Images
               </button>
@@ -356,7 +370,7 @@ export function MessageDetail({
           )}
 
           {/* Email Body */}
-          <div className="pt-2">
+          <div className="pt-2 overflow-hidden">
             {message.htmlBody ? (
               <div
                 className="email-content-frame text-sm"
@@ -367,7 +381,7 @@ export function MessageDetail({
                 }}
               />
             ) : (
-              <pre className="text-sm font-sans whitespace-pre-wrap text-stone-800 leading-relaxed">
+              <pre className="text-sm font-sans whitespace-pre-wrap text-stone-800 leading-relaxed break-words">
                 {message.textBody || "No text body available."}
               </pre>
             )}
@@ -390,11 +404,11 @@ export function MessageDetail({
                     rel="noopener noreferrer"
                     className="flex items-center justify-between p-3 rounded-2xl border border-[#ECE3D6] bg-[#FCFAF7] hover:bg-rose-50/60 hover:border-rose-200 transition group text-xs"
                   >
-                    <div className="flex items-center space-x-2.5 truncate">
+                    <div className="flex items-center space-x-2.5 truncate min-w-0">
                       <div className="w-7 h-7 rounded-xl bg-rose-100 text-cupid-800 flex items-center justify-center shrink-0">
                         <Paperclip className="w-3.5 h-3.5" />
                       </div>
-                      <div className="truncate">
+                      <div className="truncate min-w-0">
                         <div className="font-semibold text-stone-800 truncate group-hover:text-cupid-900">
                           {att.filename}
                         </div>
@@ -404,7 +418,7 @@ export function MessageDetail({
                       </div>
                     </div>
 
-                    <div className="p-1.5 rounded-lg text-stone-400 group-hover:text-cupid-800 group-hover:bg-rose-100 transition">
+                    <div className="p-1.5 rounded-lg text-stone-400 group-hover:text-cupid-800 group-hover:bg-rose-100 transition shrink-0 ml-2">
                       <Download className="w-4 h-4" />
                     </div>
                   </a>
@@ -417,16 +431,16 @@ export function MessageDetail({
         {/* Quick Reply Form */}
         <form
           onSubmit={handleQuickReplySubmit}
-          className="border border-[#ECE3D6] rounded-3xl bg-white p-5 space-y-3 shadow-sm"
+          className="border border-[#ECE3D6] rounded-2xl sm:rounded-3xl bg-white p-4 sm:p-5 space-y-3 shadow-xs"
         >
           <div className="text-xs font-mono font-semibold text-stone-700 flex items-center space-x-2">
             <CornerDownLeft className="w-3.5 h-3.5 text-cupid-700" />
-            <span>Quick Reply to {message.fromName || message.fromAddress}</span>
+            <span className="truncate">Quick Reply to {message.fromName || message.fromAddress}</span>
           </div>
 
           {quickReplyError && (
             <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-xl font-mono flex items-center justify-between">
-              <span>{quickReplyError}</span>
+              <span className="break-words">{quickReplyError}</span>
               <button
                 type="button"
                 onClick={() => setQuickReplyError(null)}
@@ -468,5 +482,3 @@ export function MessageDetail({
     </div>
   );
 }
-
-

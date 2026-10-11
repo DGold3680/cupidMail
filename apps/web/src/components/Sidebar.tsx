@@ -15,6 +15,7 @@ import {
   Layers,
   Heart,
   LogOut,
+  X,
 } from "lucide-react";
 import { cn, getInitials } from "@/lib/utils";
 
@@ -36,6 +37,8 @@ interface SidebarProps {
   onSelectMailbox: (mailboxId: string) => void;
   onOpenComposer: () => void;
   onOpenSettings: () => void;
+  isMobileOpen?: boolean;
+  onCloseMobile?: () => void;
 }
 
 export function Sidebar({
@@ -47,6 +50,8 @@ export function Sidebar({
   onSelectMailbox,
   onOpenComposer,
   onOpenSettings,
+  isMobileOpen = false,
+  onCloseMobile,
 }: SidebarProps) {
   const [currentUser, setCurrentUser] = React.useState<{
     id: string;
@@ -82,8 +87,8 @@ export function Sidebar({
     { id: "TRASH", label: "Trash", icon: Trash2 },
   ];
 
-  return (
-    <aside className="w-64 bg-[#FCFAF7] border-r border-[#ECE3D6] flex flex-col h-screen select-none shrink-0 shadow-xs">
+  const renderContent = (isMobile: boolean) => (
+    <>
       {/* Brand Header */}
       <div className="h-16 border-b border-[#ECE3D6] px-4 flex items-center justify-between bg-white/70 backdrop-blur-xs">
         <div className="flex items-center space-x-2.5">
@@ -109,12 +114,25 @@ export function Sidebar({
             </p>
           </div>
         </div>
+
+        {isMobile && (
+          <button
+            onClick={onCloseMobile}
+            className="p-1.5 text-stone-400 hover:text-stone-700 hover:bg-[#F3EBE0] rounded-xl transition md:hidden"
+            aria-label="Close menu"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        )}
       </div>
 
       {/* Compose CTA */}
       <div className="p-3.5">
         <button
-          onClick={onOpenComposer}
+          onClick={() => {
+            onOpenComposer();
+            if (isMobile) onCloseMobile?.();
+          }}
           className="w-full group flex items-center justify-center space-x-2 bg-gradient-to-r from-cupid-900 via-cupid-800 to-cupid-900 hover:from-cupid-950 hover:to-cupid-800 active:scale-[0.99] text-white font-mono text-xs font-semibold py-2.5 px-4 rounded-xl shadow-md shadow-cupid-900/20 transition-all duration-150 border border-rose-900/30"
         >
           <Plus className="w-4 h-4 stroke-[2.5] group-hover:rotate-90 transition-transform duration-200" />
@@ -133,7 +151,10 @@ export function Sidebar({
           return (
             <button
               key={folder.id}
-              onClick={() => onSelectFolder(folder.id)}
+              onClick={() => {
+                onSelectFolder(folder.id);
+                if (isMobile) onCloseMobile?.();
+              }}
               className={cn(
                 "w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition",
                 isActive
@@ -175,7 +196,10 @@ export function Sidebar({
 
           <div className="space-y-0.5 mt-1">
             <button
-              onClick={() => onSelectMailbox("all")}
+              onClick={() => {
+                onSelectMailbox("all");
+                if (isMobile) onCloseMobile?.();
+              }}
               className={cn(
                 "w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition",
                 currentMailboxId === "all"
@@ -199,7 +223,10 @@ export function Sidebar({
               return (
                 <button
                   key={mb.id}
-                  onClick={() => onSelectMailbox(mb.id)}
+                  onClick={() => {
+                    onSelectMailbox(mb.id);
+                    if (isMobile) onCloseMobile?.();
+                  }}
                   className={cn(
                     "w-full flex items-center justify-between px-3 py-1.5 rounded-xl text-xs font-medium transition text-left",
                     isSelected
@@ -228,7 +255,10 @@ export function Sidebar({
       {/* Footer & User Profile */}
       <div className="p-3 border-t border-[#ECE3D6] bg-white/60 space-y-2">
         <button
-          onClick={onOpenSettings}
+          onClick={() => {
+            onOpenSettings();
+            if (isMobile) onCloseMobile?.();
+          }}
           className="w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-xs font-mono font-medium text-stone-700 hover:bg-rose-50 hover:text-cupid-900 border border-transparent hover:border-rose-200/60 transition"
         >
           <Settings className="w-4 h-4 text-stone-400" />
@@ -269,7 +299,29 @@ export function Sidebar({
           </div>
         )}
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* Desktop Sidebar (visible on md+) */}
+      <aside className="hidden md:flex w-64 bg-[#FCFAF7] border-r border-[#ECE3D6] flex-col h-screen select-none shrink-0 shadow-xs">
+        {renderContent(false)}
+      </aside>
+
+      {/* Mobile Drawer (visible on mobile when open) */}
+      {isMobileOpen && (
+        <div className="fixed inset-0 z-50 md:hidden flex">
+          <div
+            className="fixed inset-0 bg-stone-900/40 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
+            onClick={onCloseMobile}
+            aria-hidden="true"
+          />
+          <aside className="relative w-72 max-w-[85vw] bg-[#FCFAF7] border-r border-[#ECE3D6] flex flex-col h-full select-none shadow-2xl z-10 animate-in slide-in-from-left duration-200">
+            {renderContent(true)}
+          </aside>
+        </div>
+      )}
+    </>
   );
 }
-
